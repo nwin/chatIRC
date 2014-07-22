@@ -1,0 +1,10 @@
+[package]
+
+name = "rusty-irc"
+version = "0.0.1-prealpha"
+authors = [ "nwin@users.noreply.github.com" ]
+
+[[bin]]
+
+name = "rircd" # the name of the executable to generate
+path = "src/lib.rs"
