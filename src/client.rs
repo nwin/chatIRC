@@ -130,14 +130,14 @@ impl Client {
             params.push(reason.unwrap())
         }
         self.send_msg(Message::new(REPLY(response), 
-                         Some(params.as_slice()), Some("localhost")))
+            params.as_slice(), Some("localhost")))
     }
     
     /// Sends constructs a message and sends it the client
     pub fn send(&self, command: Command, params: &[&str], prefix: Option<&str>) {
         // Note mem::transmute is safe in this case, since &[&str] is just &[&[u8].
         self.send_msg(Message::new(
-            command, Some(params), prefix
+            command, params, prefix
         ))
     }
     

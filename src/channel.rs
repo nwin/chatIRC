@@ -150,11 +150,9 @@ impl Channel {
         }
         self.clients.push(client.downgrade()); // TODO check doublets
         { // rust bug, drop does not give back borrows
-        let mut vec = Vec::new();
-        vec.push(self.name.as_slice());
         let msg = Message::new(
             JOIN, 
-            Some(vec.as_slice()), //Some(&[self.name.as_slice()]) crashes the compiler
+            &[self.name.as_slice()],
             Some(client.borrow().nickname.as_slice())
         );
         self.active_clients_do(|c| c.borrow_mut().send_msg(msg.clone()));
@@ -192,16 +190,15 @@ impl Channel {
     /// handles the mode message
     pub fn handle_mode(&mut self, client: SharedClient, message: Message) {
         let params = message.params();
-        match params {
-            None => client.borrow_mut().send_response(RPL_CHANNELMODEIS,
+        if params.len() > 0 {
+        } else {
+            client.borrow_mut().send_response(RPL_CHANNELMODEIS,
                 Some(self.name.as_slice()),
                 Some(("+".to_string() +
                     self.flags.iter().map(
                         |c| c as u8 as char).collect::<String>() 
                     ).as_slice())
-            ),
-            Some(_) => {
-            }
+            )
         }
     }
     

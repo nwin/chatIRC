@@ -23,7 +23,7 @@ pub struct Message {
     raw_message: Vec<u8>,
     prefix: Option<ASlice>,
     command: ASlice, 
-    params: Option<Vec<ASlice>>
+    params: Vec<ASlice>
 }
 
 /// Searches a slice for the first occurence of needle
@@ -39,7 +39,7 @@ fn position<T: PartialEq>(this: &[T], needle: &[T]) -> Option<uint> {
 impl Message {
     /// Creates a new message
     pub fn new(command: Command, 
-                params: Option<&[&str]>, 
+                params: &[&str], 
                 prefix: Option<&str>) -> Message {
         let mut raw_message = Vec::with_capacity(20);
         let msg_prefix = prefix.map(|p| {
@@ -54,7 +54,7 @@ impl Message {
                                     end: raw_message.len() + cmd_bytes.len() };
         raw_message.push_all(cmd_bytes);
         let mut start = msg_command.end;
-        let msg_params = params.map(|p| p.iter().map( |&param| {
+        let msg_params = params.iter().map( |&param| {
             let bytes = param.as_bytes();
             raw_message.push(b' ');
             raw_message.push_all(bytes);
@@ -62,7 +62,7 @@ impl Message {
             let slice = ASlice { start: start + 1, end: end };
             start = end;
             slice
-        }).collect());
+        }).collect();
         Message {
             raw_message: raw_message,
             prefix: msg_prefix,
@@ -115,7 +115,7 @@ impl Message {
             raw_message: raw_message,
             prefix: prefix,
             command: command,
-            params: if params.len() > 0 {Some(params)} else {None}
+            params: params
         })
     }
     
@@ -149,13 +149,9 @@ impl Message {
         };
         self.command.start += offset;
         self.command.end += offset;
-        match self.params {
-            Some(ref mut params) => {
-                for param in params.mut_iter() {
-                    param.start += offset;
-                    param.end += offset;
-                }
-            }, None => {}
+        for param in self.params.mut_iter() {
+            param.start += offset;
+            param.end += offset;
         }
     }
 
@@ -167,13 +163,10 @@ impl Message {
     /// Returns the parameters of the command
     /// *Note* since the IRC protocol does not define any encoding
     /// raw bytes are returned.
-    pub fn params<'a>(&'a self) -> Option<Vec<&'a[u8]>> {
-        match self.params {
-            Some(ref vec) => Some(vec.iter().map(|slice|
-                slice.slice_vec(&self.raw_message)
-            ).collect()),
-            None => None
-        }
+    pub fn params<'a>(&'a self) -> Vec<&'a[u8]> {
+        self.params.iter().map(
+            |slice| slice.slice_vec(&self.raw_message)
+        ).collect()
     }
 
     /// Returns the raw message

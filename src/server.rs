@@ -118,20 +118,20 @@ impl IrcServer {
     }
 
     fn handle_msg(&mut self, origin: SharedClient, message: Message) {
-        match message.params() {
-            Some(ref params) if params.len() > 1 => {
-                for receiver in params[0].as_slice().split(|&v| v == b',' )
-                                         .filter_map(|v| verify_receiver(v)) {
-                    if receiver.starts_with("#") {
-                        match self.channels.find_mut(&receiver.to_string()) {
-                            Some(channel) => 
-                                channel.handle_msg(origin.clone(), message.clone()),
-                            None => {}
-                        }
+        let params = message.params();
+        if params.len() > 1 {
+            for receiver in params[0].as_slice().split(|&v| v == b',' )
+                                     .filter_map(|v| verify_receiver(v)) {
+                if receiver.starts_with("#") {
+                    match self.channels.find_mut(&receiver.to_string()) {
+                        Some(channel) => 
+                            channel.handle_msg(origin.clone(), message.clone()),
+                        None => {}
                     }
                 }
-            },
-            _ => origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
+            }
+        } else {
+            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
                 Some(message.command().to_string().as_slice()),
                 Some("not enought params given")
             )
@@ -143,69 +143,60 @@ impl IrcServer {
     /// Parameters: <nickname> [ <hopcount> ]
     fn handle_nick(&self, mut origin: SharedClient, message: Message) {
         let mut client = origin.borrow_mut();
-        match message.params() {
-            Some(params) => {
-                match verify_nick(params[0].as_slice()) {
-                    Some(nick) => {
-                        let nick = nick.to_string();
-                        if self.nicknames.contains_key(&nick) {
-                            client.send_response(
-                                ERR_NICKNAMEINUSE,
-                                Some(nick.as_slice()), 
-                                Some("nickname in use")
-                            );
-                        } else {
-                            client.nickname = nick;
-                        }
-                    },
-                    None => {
+        let params = message.params();
+        if params.len() > 0 {
+            match verify_nick(params[0].as_slice()) {
+                Some(nick) => {
+                    let nick = nick.to_string();
+                    if self.nicknames.contains_key(&nick) {
                         client.send_response(
-                            ERR_ERRONEUSNICKNAME,
-                            Some(String::from_utf8_lossy(params[0].as_slice()).as_slice()),
-                            Some("invalid nick name")
+                            ERR_NICKNAMEINUSE,
+                            Some(nick.as_slice()), 
+                            Some("nickname in use")
                         );
+                    } else {
+                        client.nickname = nick;
                     }
+                },
+                None => {
+                    client.send_response(
+                        ERR_ERRONEUSNICKNAME,
+                        Some(String::from_utf8_lossy(params[0].as_slice()).as_slice()),
+                        Some("invalid nick name")
+                    );
                 }
-            },
-            None => {
-                client.send_response(ERR_NONICKNAMEGIVEN, None,
-                    Some("no nickname given")
-                )
             }
+        } else {
+            client.send_response(ERR_NONICKNAMEGIVEN, None,
+                Some("no nickname given")
+            )
         }
     }
     
     /// Handles the USER command
     fn handle_user(&mut self, mut origin: SharedClient, message: Message) {
-        match message.params() {
-            Some(params) => if params.len() >= 4 {
-                let username = String::from_utf8_lossy(params[0].as_slice());
-                let realname = String::from_utf8_lossy(params[3].as_slice());
-                let nick = {
-                    origin.borrow_mut().username = username.into_string();
-                    origin.borrow_mut().realname = realname.into_string();
-                    origin.borrow_mut().nickname.clone()
-                };
-                if self.nicknames.contains_key(&nick) {
-                    origin.borrow_mut().send_response(ERR_ALREADYREGISTRED, None,
-                        Some("somebody already registered with the same nickname")
-                    );
-                } else {
-                    self.nicknames.insert(nick, origin.clone());
-                    self.welcome_user(origin);
-                }
+        let params = message.params();
+        if params.len() >= 4 {
+            let username = String::from_utf8_lossy(params[0].as_slice());
+            let realname = String::from_utf8_lossy(params[3].as_slice());
+            let nick = {
+                origin.borrow_mut().username = username.into_string();
+                origin.borrow_mut().realname = realname.into_string();
+                origin.borrow_mut().nickname.clone()
+            };
+            if self.nicknames.contains_key(&nick) {
+                origin.borrow_mut().send_response(ERR_ALREADYREGISTRED, None,
+                    Some("somebody already registered with the same nickname")
+                );
             } else {
-                origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                    Some(message.command().to_string().as_slice()),
-                    Some("not enought params given")
-                )
-            },
-            None => {
-                origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                    Some(message.command().to_string().as_slice()),
-                    Some("no params given")
-                )
+                self.nicknames.insert(nick, origin.clone());
+                self.welcome_user(origin);
             }
+        } else {
+            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
+                Some(message.command().to_string().as_slice()),
+                Some("not enought params given")
+            )
         }
     }
     
@@ -222,34 +213,34 @@ impl IrcServer {
     ///    Command: JOIN
     /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
     fn handle_join(&mut self, origin: SharedClient, message: Message) {
-        match message.params() {
-            Some(ref params) if params.len() > 0 => {
-                let passwords: Vec<&[u8]> = if params.len() > 1 {
-                    params[1].as_slice().split(|c| *c == b',').collect()
-                } else {
-                    Vec::new()
-                };
-                for (i, channel_name) in params[0].as_slice().split(|c| *c == b',').enumerate() {
-                    match verify_channel(channel_name) {
-                        Some(channel) => {
-                            self.channels.find_or_insert_with(channel.to_string(), |key| {
-                                Channel::new(key.clone())
-                            }).handle_join(
-                                origin.clone(), 
-                                passwords.as_slice().get(i).map(|v| *v)
-                            )
-                        },
-                        None => origin.borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                            Some(String::from_utf8_lossy(channel_name.as_slice()).as_slice()),
-                            Some("Invalid channel name.")
+        let params = message.params();
+        if params.len() > 0 {
+            let passwords: Vec<&[u8]> = if params.len() > 1 {
+                params[1].as_slice().split(|c| *c == b',').collect()
+            } else {
+                Vec::new()
+            };
+            for (i, channel_name) in params[0].as_slice().split(|c| *c == b',').enumerate() {
+                match verify_channel(channel_name) {
+                    Some(channel) => {
+                        self.channels.find_or_insert_with(channel.to_string(), |key| {
+                            Channel::new(key.clone())
+                        }).handle_join(
+                            origin.clone(), 
+                            passwords.as_slice().get(i).map(|v| *v)
                         )
-                    }
+                    },
+                    None => origin.borrow_mut().send_response(ERR_NOSUCHCHANNEL,
+                        Some(String::from_utf8_lossy(channel_name.as_slice()).as_slice()),
+                        Some("Invalid channel name.")
+                    )
                 }
-            },
-            _ => origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                     Some(message.command().to_string().as_slice()),
-                     Some("no params given")
-                 )
+            }
+        } else {
+            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
+                Some(message.command().to_string().as_slice()),
+                Some("no params given")
+            )
         }
     }
 }
