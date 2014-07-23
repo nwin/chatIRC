@@ -43,7 +43,10 @@ macro_rules! commands {
 
 commands!{
     PRIVMSG     b"PRIVMSG"  #[doc = "`PRIVMSG` command"];
+    MODE        b"MODE"     #[doc = "`MODE` command"];
+    PONG        b"PONG"     #[doc = "`PONG` command"];
     JOIN        b"JOIN"     #[doc = "`JOIN` command, see http://tools.ietf.org/html/rfc1459.html#section-4.2.1"];
+    PING        b"PING"     #[doc = "`PING` command"];
     QUIT        b"QUIT"     #[doc = "`QUIT` command"];
     NICK        b"NICK"     #[doc = "`NICK` command"];
     USER        b"USER"     #[doc = "`USER` command"];

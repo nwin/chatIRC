@@ -10,7 +10,7 @@ use std::fmt::{Show, Formatter, FormatError};
 use message::{Message};
 use cmd::{Command, REPLY, ResponseCode};
 
-use server::{Event, ClientConnected, Message};
+use server::{Event, ClientConnected, MessageReceived};
 
 pub type SharedClient = Rc<RefCell<Client>>;
 pub type WeaklySharedClient = Weak<RefCell<Client>>;
@@ -19,6 +19,8 @@ pub struct Client {
     id: ClientId,
     msg_tx: Sender<Message>,
     stream: TcpStream,
+    server_host: String,
+    hostname: String,
     pub ip: String,
     pub nickname: String,
     pub username: String,
@@ -70,18 +72,22 @@ impl Client {
     /// Spawns two threads for communication with the client
     /// Returns a SharedClient instance.
     /// TODO handle failures
-    pub fn listen(mut stream: TcpStream, 
+    pub fn listen(host: String, mut stream: TcpStream, 
                          tx: Sender<Event>) -> IoResult<()> {
         let (msg_tx, rx) = channel();
+        let peer_name = stream.peer_name().unwrap();
         let this = Client {
             id: ClientId::new(&mut stream),
             msg_tx: msg_tx,
             stream: stream.clone(),
-            ip: format!("{}", stream.peer_name().unwrap().ip),
+            server_host: host,
+            hostname: self::net::get_nameinfo(peer_name),
+            ip: format!("{}", peer_name.ip),
             nickname: "".to_string(),
             username: "".to_string(),
             realname: "".to_string()
         };
+        debug!("hostname of client is {}", this.hostname)
         let receiving_stream = stream.clone();
         let id = this.id;
         // this has to be sended first otherwise we have a nice race conditions
@@ -90,14 +96,16 @@ impl Client {
             // TODO: write a proper 510 char line iterator
             for line in BufferedReader::new(receiving_stream).lines() {
                 let message = Message::parse(line.unwrap().as_slice().trim_right().as_bytes()).unwrap();
-                debug!("Received message {}", message.to_string());
-                tx.send(Message(id, message))
+                debug!("received message {}", message.to_string());
+                tx.send(MessageReceived(id, message))
             }
         });
         spawn(proc() {
+            // TODO: socket timeout
+            // implement when pings are send out
             let mut output_stream = BufferedWriter::new(stream);
             for message in rx.iter() {
-                debug!("Sending message {}", message.to_string());
+                debug!("sending message {}", message.to_string());
                 output_stream.write(message.as_slice()).unwrap();
                 output_stream.write(b"\r\n").unwrap();
                 output_stream.flush().unwrap();
@@ -130,7 +138,7 @@ impl Client {
             params.push(reason.unwrap())
         }
         self.send_msg(Message::new(REPLY(response), 
-            params.as_slice(), Some("localhost")))
+            params.as_slice(), Some(self.server_host.as_slice())))
     }
     
     /// Sends constructs a message and sends it the client
@@ -169,3 +177,73 @@ impl PartialEq for Client {
 }
 
 impl Eq for Client {}
+    
+mod net {
+
+    use std::io::net::ip::{SocketAddr, Ipv4Addr, Ipv6Addr};
+    use libc::{malloc, sockaddr, sockaddr_in, sockaddr_in6, in_addr, in6_addr, c_int, c_char, socklen_t, AF_INET, AF_INET6};
+    use std::mem::{size_of, transmute};
+    use std::str;
+
+    /*
+     const char *
+         inet_ntop(int af, const void * restrict src, char * restrict dst,
+             socklen_t size);
+    */
+    extern {
+        fn getnameinfo(sa: *const sockaddr, salen: socklen_t, 
+                       host: *mut c_char, hostlen: socklen_t, 
+                       serv: *mut c_char, servlen: socklen_t, 
+                       flags: c_int) -> c_int;
+    }
+
+    //static NI_NUMERICHOST: c_int = 0x00000002;
+    //static NI_NAMEREQD: c_int = 0x00000004;
+
+    /// Returns the hostname for an ip address
+    /// TODO: make this safe, see manpage
+    pub fn get_nameinfo(peer_socket: SocketAddr) -> String {
+        let SocketAddr { ip: ip, port: port } = peer_socket;
+        let buf: *mut i8;
+        let _ = unsafe {
+            let hostlen = 80;
+            buf = transmute(malloc(hostlen as u64 + 1));
+            match ip {
+                Ipv4Addr(a, b, c, d) => {
+                    let addr = in_addr {
+                        s_addr: a as u32 << 24 
+                              | b as u32 << 16 
+                              | c as u32 << 8 
+                              | d as u32
+                    };
+                    let sockaddr = sockaddr_in {
+                        sin_len: size_of::<sockaddr_in>() as u8,
+                        sin_family: AF_INET as u8,
+                        sin_port: port,
+                        sin_addr: addr,
+                        sin_zero: [0, ..8]
+                    };
+                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in>() as i32, 
+                                buf, hostlen, transmute(0u), 0, 0)
+                },
+                Ipv6Addr(a, b, c, d, e, f, g, h) => {
+                    let sockaddr = sockaddr_in6 {
+                        sin6_len: size_of::<sockaddr_in6>() as u8,
+                        sin6_family: AF_INET6 as u8,
+                        sin6_port: port,
+                        sin6_flowinfo: 0,
+                        sin6_addr: in6_addr {
+                            s6_addr: [a, b, c, d, e, f, g, h]
+                        },
+                        sin6_scope_id: 0,
+                    };
+                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in6>() as i32, 
+                                buf, hostlen, transmute(0u), 0, 0)
+                },
+            }
+       
+        };
+        unsafe {str::raw::from_c_str(transmute(buf))}
+    
+    }
+}

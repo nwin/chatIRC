@@ -1,7 +1,7 @@
 use std::collections::{HashMap, EnumSet};
 use std::collections::enum_set::{CLike};
 
-use client::{SharedClient, WeaklySharedClient};
+use client::{ClientId, SharedClient, WeaklySharedClient};
 use message::{Message};
 
 use cmd::*;
@@ -62,7 +62,62 @@ impl CLike for ChannelMode {
     }
 }
 
-fn add_flag(nick: &str, privs: &Privileges) -> String {
+struct Member {
+    tx: Sender<Message>,
+    id: ClientId,
+    nick: String,
+    decorated_nick: String,
+    flags: Flags,
+}
+
+impl Member {
+    /// Creates a new member
+    pub fn new(id: ClientId, nick: String, tx: Sender<Message>) -> Member {
+        Member {
+            id: id,
+            tx: tx,
+            nick: nick.clone(),
+            decorated_nick: nick,
+            flags: EnumSet::empty()
+        }
+    }
+    
+    /// Updates the cached decorated nick
+    fn update_decorated_name(&mut self) {
+        self.decorated_nick = if self.flags.contains_elem(OperatorPrivilege) {
+            "@".to_string().append(self.nick())
+        } else if self.flags.contains_elem(OperatorPrivilege) {
+            "+".to_string().append(self.nick())
+        } else {
+            self.nick.to_string()
+        }
+    }
+    
+    /// Grant a privilege to a member
+    pub fn promote(&mut self, flag: ChannelMode) {
+        self.flags.add(flag)
+    }
+    
+    /// Returns the nickname, prefixed with:
+    /// @ for op
+    /// v for voice
+    pub fn decorated_nick(&self) -> &str {
+        return self.decorated_nick.as_slice()
+    }
+    
+    /// Getter for nick
+    pub fn nick(&self) -> &str {
+        return self.nick.as_slice()
+    }
+    
+    /// Setter for nick
+    pub fn set_nick(&mut self, nick: String) {
+        self.nick = nick;
+        self.update_decorated_name()
+    }
+}
+
+fn add_flag(nick: &str, privs: &Flags) -> String {
     if privs.contains_elem(OperatorPrivilege) {
         "@".to_string().append(nick)
     } else if privs.contains_elem(OperatorPrivilege) {
@@ -72,16 +127,16 @@ fn add_flag(nick: &str, privs: &Privileges) -> String {
     }
 }
 
-pub type Privileges = EnumSet<ChannelMode>;
+pub type Flags = EnumSet<ChannelMode>;
 
 /// Represents an IRC channel
 pub struct Channel {
     name: String,
     topic: String,
     password: Vec<u8>,
-    flags: Privileges,
+    flags: Flags,
     clients: Vec<WeaklySharedClient>,
-    user_priviliges: HashMap<String, Privileges> 
+    user_privileges: HashMap<String, Flags> 
 }
 
 impl Channel {
@@ -92,7 +147,7 @@ impl Channel {
             password: Vec::new(),
             flags: EnumSet::empty(),
             clients: Vec::new(),
-            user_priviliges: HashMap::new()
+            user_privileges: HashMap::new()
         }
     }
     
@@ -108,6 +163,7 @@ impl Channel {
     }
     
     /// Perform an action on all active clients
+    /// Todo: replace this with an external iterator
     fn active_clients_do(&self, closure: |SharedClient|) {
         for client in self.clients.iter().filter_map(|c| c.upgrade()) {
             closure(client)
@@ -116,23 +172,41 @@ impl Channel {
     
     /// Grant a user with a privilege
     pub fn grant(&mut self, client: &SharedClient, privilege: ChannelMode) {
-        self.user_priviliges.find_or_insert_with(
+        self.user_privileges.find_or_insert_with(
             client.borrow().nickname.to_string(), 
             |_| { EnumSet::empty() } 
         ).add(privilege)
     }
     
+    /// Checks whether a user is in the channel 
+    fn is_member(&self, client: &SharedClient) -> bool {
+        let mut is_member = false;
+        self.active_clients_do( | c |
+            if *client.borrow() != *c.borrow() {
+                is_member = true
+            }
+        );
+        is_member
+    }
+    
+    /// Checks whether a user has a certain privilege
+    fn has_privilege(&self, client: &SharedClient, privilege: ChannelMode) -> bool {
+        match self.user_privileges.find(&client.borrow().nickname) {
+            Some(privs) => privs.contains_elem(privilege),
+            None => false
+        }
+    }
+    
     /// Sends the list of users to the client
     pub fn handle_names(&self, client: SharedClient) {
-        let mut c = client;
-        for (nick, privileges) in self.user_priviliges.iter() {
-            c.borrow_mut().send_response(RPL_NAMREPLY, 
+        for (nick, privileges) in self.user_privileges.iter() {
+            client.borrow_mut().send_response(RPL_NAMREPLY, 
                 Some(String::from_str("= ").append(self.name.as_slice()).as_slice()),
 //                Some(self.name.as_slice()),
                 Some(add_flag(nick.as_slice(), privileges).as_slice())
             )
         }
-        c.borrow_mut().send_response(RPL_ENDOFNAMES, Some(self.name.as_slice()), 
+        client.borrow_mut().send_response(RPL_ENDOFNAMES, Some(self.name.as_slice()), 
             Some("End of /NAMES list"));
     }
     
@@ -158,7 +232,7 @@ impl Channel {
         self.active_clients_do(|c| c.borrow_mut().send_msg(msg.clone()));
         {
             let mut c = client.borrow_mut();
-            self.user_priviliges.insert(c.nickname.clone(), EnumSet::empty());
+            self.user_privileges.insert(c.nickname.clone(), EnumSet::empty());
             c.send_response(RPL_NOTOPIC, 
                 Some(self.name.as_slice()), Some("No topic set."));
         }
@@ -184,13 +258,17 @@ impl Channel {
         if client_id.is_some() {
             self.clients.remove(client_id.unwrap());
         }
-        self.user_priviliges.remove(&nickname);
+        self.user_privileges.remove(&nickname);
     }
     
     /// handles the mode message
     pub fn handle_mode(&mut self, client: SharedClient, message: Message) {
         let params = message.params();
-        if params.len() > 0 {
+        if params.len() > 1 {
+            if self.has_privilege(&client, OperatorPrivilege) {
+            }
+            
+            error!("TODO: implement mode setting") 
         } else {
             client.borrow_mut().send_response(RPL_CHANNELMODEIS,
                 Some(self.name.as_slice()),
@@ -202,10 +280,18 @@ impl Channel {
         }
     }
     
-    
     /// handles private messages
     pub fn handle_msg(&mut self, client: SharedClient, mut message: Message) {
-        message.set_prefix(client.borrow().nickname.as_slice());
+        let ref nickname = client.borrow().nickname;
+        message.set_prefix(nickname.as_slice());
+        if self.flags.contains_elem(MemberOnly) 
+           && !self.is_member(&client) {
+            return // TODO error message
+        }
+        if self.flags.contains_elem(VoicePrivilege) 
+           && !self.has_privilege(&client, VoicePrivilege) {
+            return // TODO error message
+        }
         self.active_clients_do(|c|
             if *client.borrow() != *c.borrow() {
                 c.borrow_mut().send_msg(message.clone())

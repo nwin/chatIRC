@@ -7,7 +7,7 @@ use std::collections::hashmap::{HashMap};
 use message::{Message};
 use channel::{Channel};
 use client::{SharedClient, Client, ClientId};
-use util::{verify_nick, verify_channel, verify_receiver};
+use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
 
 use cmd::*;
 
@@ -20,7 +20,7 @@ pub struct IrcServer {
 }
 
 pub enum Event {
-    Message(ClientId, Message),
+    MessageReceived(ClientId, Message),
     ClientConnected(Client)
 }
 
@@ -42,7 +42,7 @@ impl IrcServer {
         let message_rx = try!(self.start_listening());
         for event in message_rx.iter() {
             match event {
-                Message(client_id, message) => {
+                MessageReceived(client_id, message) => {
                     let client = match self.clients.find(&client_id) {
                         Some(client) => Some(client.clone()),
                         None => None
@@ -67,15 +67,17 @@ impl IrcServer {
     
     fn start_listening(&mut self) -> IoResult<Receiver<(Event)>>  {
         let listener = TcpListener::bind(self.host.as_slice(), self.port);
+        debug!("started listening on {}:{}", self.host, self.port);
         let acceptor = try!(listener.listen());
         let (tx, rx) = channel();
+        let host = self.host.clone();
         spawn(proc() {
             let mut a = acceptor; // https://github.com/rust-lang/rust/issues/11958
             for maybe_stream in a.incoming() {
                 match maybe_stream {
                     Err(err) => { error!("{}", err) }
                     Ok(stream) => {
-                        match Client::listen(stream, tx.clone()) {
+                        match Client::listen(host.clone(), stream, tx.clone()) {
                             Ok(()) => {
                             },
                             Err(err) => {
@@ -99,9 +101,14 @@ impl IrcServer {
         // TODO: wrap this in a proc?
         match message.command() {
             PRIVMSG => self.handle_msg(origin, message),
+            MODE => self.handle_mode(origin, message),
+            // ignoring PONG, this is basically handled
+            // by the socket timeout
+            PONG => {},
             JOIN => self.handle_join(origin, message),
             NICK => self.handle_nick(origin, message),
             USER => self.handle_user(origin, message),
+            PING => {}, // ignoring this message, I am a server
             QUIT => self.handle_quit(origin, message),
             REPLY(_) => {}, // should not come from a client, ignore
             UNKNOWN(_) => 
@@ -113,21 +120,28 @@ impl IrcServer {
     
     /// Sends a welcome message to a newly registered client
     fn welcome_user(&self, client: SharedClient) {
-        let mut c = client;
-        c.borrow_mut().send_response(RPL_WELCOME, None, None)
+        client.borrow_mut().send_response(RPL_WELCOME, None, None)
     }
 
-    fn handle_msg(&mut self, origin: SharedClient, message: Message) {
+    fn handle_msg(&mut self, origin: SharedClient, mut message: Message) {
+        message.set_prefix(self.host.as_slice());
         let params = message.params();
         if params.len() > 1 {
             for receiver in params[0].as_slice().split(|&v| v == b',' )
-                                     .filter_map(|v| verify_receiver(v)) {
-                if receiver.starts_with("#") {
-                    match self.channels.find_mut(&receiver.to_string()) {
+                                     .map(|v| verify_receiver(v)) {
+                match receiver {
+                    ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
                         Some(channel) => 
                             channel.handle_msg(origin.clone(), message.clone()),
                         None => {}
-                    }
+                    },
+                    NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
+                        Some(client) => {
+                            client.borrow_mut().send_msg(message.clone());
+                        },
+                        None => {}
+                    },
+                    _ => {}
                 }
             }
         } else {
@@ -141,7 +155,7 @@ impl IrcServer {
     /// Handles the nick command
     ///    Command: NICK
     /// Parameters: <nickname> [ <hopcount> ]
-    fn handle_nick(&self, mut origin: SharedClient, message: Message) {
+    fn handle_nick(&self, origin: SharedClient, message: Message) {
         let mut client = origin.borrow_mut();
         let params = message.params();
         if params.len() > 0 {
@@ -174,7 +188,7 @@ impl IrcServer {
     }
     
     /// Handles the USER command
-    fn handle_user(&mut self, mut origin: SharedClient, message: Message) {
+    fn handle_user(&mut self, origin: SharedClient, message: Message) {
         let params = message.params();
         if params.len() >= 4 {
             let username = String::from_utf8_lossy(params[0].as_slice());
@@ -207,6 +221,31 @@ impl IrcServer {
         client.close_connection();
         self.nicknames.remove(&client.nickname);
         self.clients.remove(&client.id());
+    }
+    
+    /// Handles the MODE command
+    fn handle_mode(&mut self, origin: SharedClient, message: Message) {
+        let params = message.params();
+        if params.len() > 0 {
+            match verify_receiver(params[0]) {
+                ChannelName(ref name) => {
+                    match self.channels.find_mut(&name.to_string()) {
+                        Some(channel) => channel.handle_mode(origin, message.clone()),
+                        None => origin
+                            .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
+                                Some(*name), Some("No such channel"))
+                            
+                            
+                    }
+                },
+                _ => error!("user modes not supported yet")
+            }
+        } else {
+            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
+                Some(message.command().to_string().as_slice()),
+                Some("no receiver given")
+            )
+        }
     }
     
     /// Handles the JOIN command

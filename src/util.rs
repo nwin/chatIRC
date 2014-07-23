@@ -54,20 +54,23 @@ pub fn verify_channel<'a>(channel: &'a [u8]) -> Option<&'a str> {
     }
 }
 
-fn valid_receiver(recv: &str) -> bool {
-    valid_channel(recv) || valid_nick(recv)
+pub enum Receiver<'a> {
+    ChannelName(&'a str),
+    NickName(&'a str),
+    InvalidReceiver(&'a [u8])
 }
 
 /// Validates the raw channel name and converts it into a string. 
-pub fn verify_receiver<'a>(recv: &'a [u8]) -> Option<&'a str> {
+pub fn verify_receiver<'a>(recv: &'a [u8]) -> Receiver<'a> {
     match from_utf8(recv) {
-        None => None,
-        Some(recv) => 
-            if valid_receiver(recv) {
-                Some(recv) 
-            } else { None }
+        None => InvalidReceiver(recv),
+        Some(name) => 
+            if valid_channel(name) {
+                ChannelName(name)
+            } else if valid_nick(name) {
+                NickName(name)
+            } else { InvalidReceiver(recv) }
     }
-    
 }
 
 #[cfg(test)]

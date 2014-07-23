@@ -9,6 +9,7 @@
 
 #[phase(plugin, link)] extern crate log;
 extern crate collections;
+extern crate libc;
 
 // pub only for documentation purposes
 pub mod message;
@@ -20,5 +21,8 @@ pub mod cmd;
 pub mod util;
 
 fn main() {
-    let _  = server::IrcServer::new("127.0.0.1", 6667).serve_forever();
+    match server::IrcServer::new("127.0.0.1", 6667).serve_forever() {
+        Ok(_) => {},
+        Err(err) => error!("{}", err)
+    }
 }
