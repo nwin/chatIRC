@@ -2,13 +2,13 @@ use std::collections::{HashMap, EnumSet};
 use std::collections::enum_set::{CLike};
 
 use client::{ClientId, SharedClient, WeaklySharedClient};
-use message::{Message};
+use message::{RawMessage};
 
 use cmd::*;
 
 /// Enumeration of possible channel modes
 /// as of http://tools.ietf.org/html/rfc2811#section-4
-#[deriving(FromPrimitive, Show)]
+#[deriving(FromPrimitive, Show, Clone)]
 pub enum ChannelMode {
     /// give "channel creator" status
     GiveOp = b'O' as int,
@@ -63,7 +63,7 @@ impl CLike for ChannelMode {
 }
 
 struct Member {
-    tx: Sender<Message>,
+    tx: Sender<RawMessage>,
     id: ClientId,
     nick: String,
     decorated_nick: String,
@@ -72,7 +72,7 @@ struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: ClientId, nick: String, tx: Sender<Message>) -> Member {
+    pub fn new(id: ClientId, nick: String, tx: Sender<RawMessage>) -> Member {
         Member {
             id: id,
             tx: tx,
@@ -80,6 +80,27 @@ impl Member {
             decorated_nick: nick,
             flags: EnumSet::empty()
         }
+    }
+    
+    /// Sends a message to the client
+    pub fn send_msg(&self, msg: RawMessage) {
+        self.tx.send(msg)
+    }
+    
+    /// Grant a privilege to a member
+    pub fn promote(&mut self, flag: ChannelMode) {
+        self.flags.add(flag)
+    }
+    
+    /// Checks whether a member has a certain privilege
+    pub fn has_privilege(&self, privilege: ChannelMode) -> bool {
+        self.flags.contains_elem(privilege)
+    }
+    
+    /// Checks whether a member has the voice privilege
+    pub fn has_voice(&self) -> bool {
+        self.flags.contains_elem(VoicePrivilege) 
+        || self.flags.contains_elem(OperatorPrivilege) 
     }
     
     /// Updates the cached decorated nick
@@ -91,11 +112,6 @@ impl Member {
         } else {
             self.nick.to_string()
         }
-    }
-    
-    /// Grant a privilege to a member
-    pub fn promote(&mut self, flag: ChannelMode) {
-        self.flags.add(flag)
     }
     
     /// Returns the nickname, prefixed with:
@@ -117,15 +133,14 @@ impl Member {
     }
 }
 
-fn add_flag(nick: &str, privs: &Flags) -> String {
-    if privs.contains_elem(OperatorPrivilege) {
-        "@".to_string().append(nick)
-    } else if privs.contains_elem(OperatorPrivilege) {
-        "+".to_string().append(nick)
-    } else {
-        nick.to_string()
+impl PartialEq for Member {
+    #[inline]
+    fn eq(&self, other: &Member) -> bool {
+        self.id == other.id
     }
 }
+
+impl Eq for Member {}
 
 pub type Flags = EnumSet<ChannelMode>;
 
@@ -135,8 +150,8 @@ pub struct Channel {
     topic: String,
     password: Vec<u8>,
     flags: Flags,
-    clients: Vec<WeaklySharedClient>,
-    user_privileges: HashMap<String, Flags> 
+    members: HashMap<String, Member>,
+    nicknames: HashMap<ClientId, String>,
 }
 
 impl Channel {
@@ -146,157 +161,131 @@ impl Channel {
             topic: "".to_string(),
             password: Vec::new(),
             flags: EnumSet::empty(),
-            clients: Vec::new(),
-            user_privileges: HashMap::new()
-        }
-    }
-    
-    /// Filters out invalid users refs and updates list
-    /// This is only called during join and part events due 
-    /// to performance considerations
-    fn update_active_clients(&mut self) -> Vec<SharedClient> {
-        let active_clients: Vec<SharedClient> = self.clients.iter().filter_map(
-            |c| c.upgrade()).collect();
-        self.clients = active_clients.iter().map(
-            |c| c.downgrade()).collect();
-        active_clients
-    }
-    
-    /// Perform an action on all active clients
-    /// Todo: replace this with an external iterator
-    fn active_clients_do(&self, closure: |SharedClient|) {
-        for client in self.clients.iter().filter_map(|c| c.upgrade()) {
-            closure(client)
-        }
-    }
-    
-    /// Grant a user with a privilege
-    pub fn grant(&mut self, client: &SharedClient, privilege: ChannelMode) {
-        self.user_privileges.find_or_insert_with(
-            client.borrow().nickname.to_string(), 
-            |_| { EnumSet::empty() } 
-        ).add(privilege)
-    }
-    
-    /// Checks whether a user is in the channel 
-    fn is_member(&self, client: &SharedClient) -> bool {
-        let mut is_member = false;
-        self.active_clients_do( | c |
-            if *client.borrow() != *c.borrow() {
-                is_member = true
-            }
-        );
-        is_member
-    }
-    
-    /// Checks whether a user has a certain privilege
-    fn has_privilege(&self, client: &SharedClient, privilege: ChannelMode) -> bool {
-        match self.user_privileges.find(&client.borrow().nickname) {
-            Some(privs) => privs.contains_elem(privilege),
-            None => false
+            members: HashMap::new(),
+            nicknames: HashMap::new()
         }
     }
     
     /// Sends the list of users to the client
     pub fn handle_names(&self, client: SharedClient) {
-        for (nick, privileges) in self.user_privileges.iter() {
-            client.borrow_mut().send_response(RPL_NAMREPLY, 
-                Some(String::from_str("= ").append(self.name.as_slice()).as_slice()),
-//                Some(self.name.as_slice()),
-                Some(add_flag(nick.as_slice(), privileges).as_slice())
-            )
-        }
-        client.borrow_mut().send_response(RPL_ENDOFNAMES, Some(self.name.as_slice()), 
-            Some("End of /NAMES list"));
+        //for (nick, privileges) in self.user_privileges.iter() {
+        //    client.borrow_mut().send_response(RPL_NAMREPLY, 
+        //        Some(String::from_str("= ").append(self.name.as_slice()).as_slice()),
+//      //          Some(self.name.as_slice()),
+        //        Some(add_flag(nick.as_slice(), privileges).as_slice())
+        //    )
+        //}
+        //client.borrow_mut().send_response(RPL_ENDOFNAMES, Some(self.name.as_slice()), 
+        //    Some("End of /NAMES list"));
     }
     
     /// Handles the join attempt of a user
     pub fn handle_join(&mut self, client: SharedClient, password: Option<&[u8]>) {
-        if self.password.len() != 0 {
-            if !match password { Some(password) => password == self.password.as_slice(),
-                                 None => false } {
-                client.borrow_mut().send_response(ERR_BADCHANNELKEY,
-                    Some(self.name.as_slice()),
-                    Some("Password is wrong")
-                );
-                return
-            }
-        }
-        self.clients.push(client.downgrade()); // TODO check doublets
-        { // rust bug, drop does not give back borrows
-        let msg = Message::new(
-            JOIN, 
-            &[self.name.as_slice()],
-            Some(client.borrow().nickname.as_slice())
-        );
-        self.active_clients_do(|c| c.borrow_mut().send_msg(msg.clone()));
-        {
-            let mut c = client.borrow_mut();
-            self.user_privileges.insert(c.nickname.clone(), EnumSet::empty());
-            c.send_response(RPL_NOTOPIC, 
-                Some(self.name.as_slice()), Some("No topic set."));
-        }
-        } // rust bug
-        if self.clients.len() == 1 { // first user
-            self.grant(&client, OperatorPrivilege)
-        }
-        self.handle_names(client);
+        //if self.password.len() != 0 {
+        //    if !match password { Some(password) => password == self.password.as_slice(),
+        //                         None => false } {
+        //        client.borrow_mut().send_response(ERR_BADCHANNELKEY,
+        //            Some(self.name.as_slice()),
+        //            Some("Password is wrong")
+        //        );
+        //        return
+        //    }
+        //}
+        //self.clients.push(client.downgrade()); // TODO check doublets
+        //{ // rust bug, drop does not give back borrows
+        //let msg = RawMessage::new(
+        //    JOIN, 
+        //    &[self.name.as_slice()],
+        //    Some(client.borrow().nickname.as_slice())
+        //);
+        //self.active_clients_do(|c| c.borrow_mut().send_msg(msg.clone()));
+        //{
+        //    let mut c = client.borrow_mut();
+        //    self.user_privileges.insert(c.nickname.clone(), EnumSet::empty());
+        //    c.send_response(RPL_NOTOPIC, 
+        //        Some(self.name.as_slice()), Some("No topic set."));
+        //}
+        //} // rust bug
+        //if self.clients.len() == 1 { // first user
+        //    self.grant(&client, OperatorPrivilege)
+        //}
+        //self.handle_names(client);
     }
     
     /// Handles the quit/part event
-    pub fn handle_leave(&mut self, client: SharedClient, mut message: Message) {
-        let nickname = client.borrow().nickname.clone();
-        message.set_prefix(nickname.as_slice());
-        let mut client_id = None;
-        for (i, chan_client) in self.update_active_clients().iter().enumerate() {
-            if *client.borrow() == *chan_client.borrow() {
-                client_id = Some(i)
-            } else {
-                chan_client.borrow_mut().send_msg(message.clone())
-            }
-        }
-        if client_id.is_some() {
-            self.clients.remove(client_id.unwrap());
-        }
-        self.user_privileges.remove(&nickname);
+    pub fn handle_leave(&mut self, client: SharedClient, mut message: RawMessage) {
+        //let nickname = client.borrow().nickname.clone();
+        //message.set_prefix(nickname.as_slice());
+        //let mut client_id = None;
+        //for (i, chan_client) in self.update_active_clients().iter().enumerate() {
+        //    if *client.borrow() == *chan_client.borrow() {
+        //        client_id = Some(i)
+        //    } else {
+        //        chan_client.borrow_mut().send_msg(message.clone())
+        //    }
+        //}
+        //if client_id.is_some() {
+        //    self.clients.remove(client_id.unwrap());
+        //}
+        //self.user_privileges.remove(&nickname);
     }
     
     /// handles the mode message
-    pub fn handle_mode(&mut self, client: SharedClient, message: Message) {
-        let params = message.params();
-        if params.len() > 1 {
-            if self.has_privilege(&client, OperatorPrivilege) {
-            }
-            
-            error!("TODO: implement mode setting") 
-        } else {
-            client.borrow_mut().send_response(RPL_CHANNELMODEIS,
-                Some(self.name.as_slice()),
-                Some(("+".to_string() +
-                    self.flags.iter().map(
-                        |c| c as u8 as char).collect::<String>() 
-                    ).as_slice())
-            )
-        }
+    pub fn handle_mode(&mut self, client: SharedClient, message: RawMessage) {
+        //let params = message.params();
+        //if params.len() > 1 {
+        //    if self.has_privilege(&client, OperatorPrivilege) {
+        //    }
+        //    
+        //    error!("TODO: implement mode setting") 
+        //} else {
+        //    client.borrow_mut().send_response(RPL_CHANNELMODEIS,
+        //        Some(self.name.as_slice()),
+        //        Some(("+".to_string() +
+        //            self.flags.iter().map(
+        //                |c| c as u8 as char).collect::<String>() 
+        //            ).as_slice())
+        //    )
+        //}
     }
     
     /// handles private messages
-    pub fn handle_msg(&mut self, client: SharedClient, mut message: Message) {
-        let ref nickname = client.borrow().nickname;
-        message.set_prefix(nickname.as_slice());
-        if self.flags.contains_elem(MemberOnly) 
-           && !self.is_member(&client) {
-            return // TODO error message
-        }
-        if self.flags.contains_elem(VoicePrivilege) 
-           && !self.has_privilege(&client, VoicePrivilege) {
-            return // TODO error message
-        }
-        self.active_clients_do(|c|
-            if *client.borrow() != *c.borrow() {
-                c.borrow_mut().send_msg(message.clone())
+    pub fn handle_msg(&mut self, client_id: ClientId, message: RawMessage) {
+        let nick = self.nicknames.find(&client_id).clone();
+        let maybe_member = match nick {
+            Some(nick) => self.members.find(nick),
+            None => None
+        };
+        
+        if self.flags.contains_elem(MemberOnly)
+        || self.flags.contains_elem(VoicePrivilege) {
+            match maybe_member {
+                Some(sender) => {
+                    if self.flags.contains_elem(VoicePrivilege) && !sender.has_voice() {
+                        return // TODO error message
+                    }
+                    for (_, member) in self.members.iter() {
+                        if member != sender {
+                            member.send_msg(message.clone())
+                        }
+                    }
+                },
+                None => {
+                    return // TODO error message
+                }
             }
-        );
+        } else { // Message goes to everybody
+            match maybe_member {
+                Some(sender) => for (_, member) in self.members.iter() {
+                    if member != sender {
+                        member.send_msg(message.clone())
+                    }
+                },
+                None => for (_, member) in self.members.iter() {
+                    member.send_msg(message.clone())
+                }
+            }
+        }
     }
     
     

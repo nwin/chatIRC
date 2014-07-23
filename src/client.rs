@@ -7,7 +7,7 @@ use std::cell::{RefCell};
 use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
-use message::{Message};
+use message::{RawMessage};
 use cmd::{Command, REPLY, ResponseCode};
 
 use server::{Event, ClientConnected, MessageReceived};
@@ -17,7 +17,7 @@ pub type WeaklySharedClient = Weak<RefCell<Client>>;
 
 pub struct Client {
     id: ClientId,
-    msg_tx: Sender<Message>,
+    msg_tx: Sender<RawMessage>,
     stream: TcpStream,
     server_host: String,
     hostname: String,
@@ -95,7 +95,7 @@ impl Client {
         spawn(proc() {
             // TODO: write a proper 510 char line iterator
             for line in BufferedReader::new(receiving_stream).lines() {
-                let message = Message::parse(line.unwrap().as_slice().trim_right().as_bytes()).unwrap();
+                let message = RawMessage::parse(line.unwrap().as_slice().trim_right().as_bytes()).unwrap();
                 debug!("received message {}", message.to_string());
                 tx.send(MessageReceived(id, message))
             }
@@ -137,21 +137,21 @@ impl Client {
         if reason.is_some() {
             params.push(reason.unwrap())
         }
-        self.send_msg(Message::new(REPLY(response), 
+        self.send_msg(RawMessage::new(REPLY(response), 
             params.as_slice(), Some(self.server_host.as_slice())))
     }
     
     /// Sends constructs a message and sends it the client
     pub fn send(&self, command: Command, params: &[&str], prefix: Option<&str>) {
         // Note mem::transmute is safe in this case, since &[&str] is just &[&[u8].
-        self.send_msg(Message::new(
+        self.send_msg(RawMessage::new(
             command, params, prefix
         ))
     }
     
     /// Sends a message to the client.
     /// Returns immediately.
-    pub fn send_msg(&self, message: Message) {
+    pub fn send_msg(&self, message: RawMessage) {
         self.msg_tx.send(message)
     }
     

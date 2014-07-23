@@ -4,7 +4,7 @@ use std::io::{Listener, Acceptor};
 use std::io::{IoResult};
 use std::collections::hashmap::{HashMap};
 
-use message::{Message};
+use message::{RawMessage};
 use channel::{Channel};
 use client::{SharedClient, Client, ClientId};
 use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
@@ -20,7 +20,7 @@ pub struct IrcServer {
 }
 
 pub enum Event {
-    MessageReceived(ClientId, Message),
+    MessageReceived(ClientId, RawMessage),
     ClientConnected(Client)
 }
 
@@ -97,10 +97,10 @@ impl IrcServer {
     /// to keep the processing time of each message as short as possible to
     /// archive bester server performance. Should spawn new threads if the processing
     /// take more time.
-    fn dispatch(&mut self, origin: SharedClient, message: Message) {
+    fn dispatch(&mut self, origin: SharedClient, message: RawMessage) {
         // TODO: wrap this in a proc?
         match message.command() {
-            PRIVMSG => self.handle_msg(origin, message),
+            PRIVMSG => self.handle_privmsg(origin, message),
             MODE => self.handle_mode(origin, message),
             // ignoring PONG, this is basically handled
             // by the socket timeout
@@ -123,8 +123,8 @@ impl IrcServer {
         client.borrow_mut().send_response(RPL_WELCOME, None, None)
     }
 
-    fn handle_msg(&mut self, origin: SharedClient, mut message: Message) {
-        message.set_prefix(self.host.as_slice());
+    fn handle_privmsg(&mut self, origin: SharedClient, mut message: RawMessage) {
+        message.set_prefix(origin.borrow().nickname.as_slice());
         let params = message.params();
         if params.len() > 1 {
             for receiver in params[0].as_slice().split(|&v| v == b',' )
@@ -132,7 +132,7 @@ impl IrcServer {
                 match receiver {
                     ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
                         Some(channel) => 
-                            channel.handle_msg(origin.clone(), message.clone()),
+                            channel.handle_msg(origin.borrow().id(), message.clone()),
                         None => {}
                     },
                     NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
@@ -155,7 +155,7 @@ impl IrcServer {
     /// Handles the nick command
     ///    Command: NICK
     /// Parameters: <nickname> [ <hopcount> ]
-    fn handle_nick(&self, origin: SharedClient, message: Message) {
+    fn handle_nick(&self, origin: SharedClient, message: RawMessage) {
         let mut client = origin.borrow_mut();
         let params = message.params();
         if params.len() > 0 {
@@ -188,7 +188,7 @@ impl IrcServer {
     }
     
     /// Handles the USER command
-    fn handle_user(&mut self, origin: SharedClient, message: Message) {
+    fn handle_user(&mut self, origin: SharedClient, message: RawMessage) {
         let params = message.params();
         if params.len() >= 4 {
             let username = String::from_utf8_lossy(params[0].as_slice());
@@ -215,7 +215,7 @@ impl IrcServer {
     }
     
     /// Handles the QUIT command
-    fn handle_quit(&mut self, origin: SharedClient, _: Message) {
+    fn handle_quit(&mut self, origin: SharedClient, _: RawMessage) {
         // TODO communicate this to other users
         let mut client = origin.borrow_mut();
         client.close_connection();
@@ -224,7 +224,7 @@ impl IrcServer {
     }
     
     /// Handles the MODE command
-    fn handle_mode(&mut self, origin: SharedClient, message: Message) {
+    fn handle_mode(&mut self, origin: SharedClient, message: RawMessage) {
         let params = message.params();
         if params.len() > 0 {
             match verify_receiver(params[0]) {
@@ -251,7 +251,7 @@ impl IrcServer {
     /// Handles the JOIN command
     ///    Command: JOIN
     /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
-    fn handle_join(&mut self, origin: SharedClient, message: Message) {
+    fn handle_join(&mut self, origin: SharedClient, message: RawMessage) {
         let params = message.params();
         if params.len() > 0 {
             let passwords: Vec<&[u8]> = if params.len() > 1 {

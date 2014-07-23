@@ -19,7 +19,7 @@ impl ASlice {
 // TODO: do not use vecs for that, better [u8, ..510] and slices to that
 // or just safe offsets in the message parts fields…
 #[deriving(Show, Clone)]
-pub struct Message {
+pub struct RawMessage {
     raw_message: Vec<u8>,
     prefix: Option<ASlice>,
     command: ASlice, 
@@ -36,11 +36,11 @@ fn position<T: PartialEq>(this: &[T], needle: &[T]) -> Option<uint> {
     None
 }
 
-impl Message {
+impl RawMessage {
     /// Creates a new message
     pub fn new(command: Command, 
                 params: &[&str], 
-                prefix: Option<&str>) -> Message {
+                prefix: Option<&str>) -> RawMessage {
         let mut raw_message = Vec::with_capacity(20);
         let msg_prefix = prefix.map(|p| {
             raw_message.push(b':');
@@ -63,7 +63,7 @@ impl Message {
             start = end;
             slice
         }).collect();
-        Message {
+        RawMessage {
             raw_message: raw_message,
             prefix: msg_prefix,
             command: msg_command,
@@ -72,13 +72,13 @@ impl Message {
     }
     
     /// Parses a message. Extracts the prefix, command and the params
-    pub fn parse(mut message: &[u8]) -> Result<Message, &'static str> {
+    pub fn parse(mut message: &[u8]) -> Result<RawMessage, &'static str> {
         // Check for message prefix (starts with : and ends with space)
         let raw_message = Vec::from_slice(message);
         let prefix = if message.starts_with([b':']) {
             let prefix_end = match message.position_elem(&b' ') { 
                 Some(v) => v, 
-                None => return Err("Message does not contain a command.") 
+                None => return Err("RawMessage does not contain a command.") 
             };
             message = message.slice_from(prefix_end + 1);
             Some(ASlice{ start: 1, end: prefix_end })
@@ -100,7 +100,7 @@ impl Message {
             Some(cmd) =>
                 ASlice { start: cmd_start, 
                            end: cmd_start + cmd.len() },
-            None => return Err("Message does not contain a command.") 
+            None => return Err("RawMessage does not contain a command.") 
         };
         let mut start = command.end + 1;
         let mut params: Vec<ASlice> = middle_iter.map(|p| {
@@ -111,7 +111,7 @@ impl Message {
         if trailing.is_some() {
             params.push(trailing.unwrap())
         }
-        Ok(Message {
+        Ok(RawMessage {
             raw_message: raw_message,
             prefix: prefix,
             command: command,
@@ -182,12 +182,12 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-	use super::{Message};
+	use super::{RawMessage};
 	use cmd::{JOIN};
 	/// Test the nickname validation function
 	#[test]
 	fn test_message_parser() {
-        let m = Message::parse(":prefix JOIN #channel".as_bytes()).unwrap();
+        let m = RawMessage::parse(":prefix JOIN #channel".as_bytes()).unwrap();
         assert_eq!(m.prefix().unwrap(), b"prefix")
         assert!(match m.command() {JOIN => true, _ => false})
         assert_eq!(m.params().unwrap()[0], b"#channel")
@@ -195,7 +195,7 @@ mod tests {
 	/// Test the prefix setter
 	#[test]
 	fn test_prefix_setter() {
-        let mut m = Message::parse(":prefix JOIN #channel".as_bytes()).unwrap();
+        let mut m = RawMessage::parse(":prefix JOIN #channel".as_bytes()).unwrap();
         m.set_prefix("new prefix");
         assert_eq!(String::from_utf8_lossy(m.prefix().unwrap()).to_owned(),
                    String::from_str("new prefix").to_owned())
@@ -206,7 +206,7 @@ mod tests {
 	/// Test message creation
 	#[test]
 	fn test_msg_new() {
-        let m = Message::new(JOIN, Some(&["#channel"]), Some("prefix"));
+        let m = RawMessage::new(JOIN, Some(&["#channel"]), Some("prefix"));
         assert_eq!(m.prefix().unwrap(), b"prefix")
         assert!(match m.command() {JOIN => true, _ => false})
         assert_eq!(m.params().unwrap()[0], b"#channel")
