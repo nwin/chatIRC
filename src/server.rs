@@ -132,7 +132,7 @@ impl IrcServer {
                 match receiver {
                     ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
                         Some(channel) => 
-                            channel.handle_msg(origin.borrow().id(), message.clone()),
+                            channel.handle_privmsg(origin.borrow().id(), message.clone()),
                         None => {}
                     },
                     NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {

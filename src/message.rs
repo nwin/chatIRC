@@ -1,4 +1,64 @@
-use cmd::{Command};
+use cmd::*;
+use util;
+
+pub enum Message {
+    Privmsg(Option<Receiver>, Vec<Receiver>, Payload),
+    Raw(RawMessage)
+}
+
+type Prefix = String;
+type Payload = Vec<u8>;
+
+pub enum Receiver {
+    ChannelName(String),
+    NickName(String),
+    InvalidReceiver(Vec<u8>)
+}
+
+impl Message {
+    /// Parses a raw message. In case of error an appropriate error
+    /// message is produced
+    pub fn from_raw(raw: RawMessage) -> Result<Message, RawMessage> {
+        let source = raw.prefix().map(|v| Receiver::from_vec(v.to_string().into_bytes()));
+        match raw.command() {
+            PRIVMSG => {
+                let params = raw.params();
+                if params.len() > 1 {
+                    let recv = params[0].as_slice().split(|&v| v == b',' )
+                        .map(|v| Receiver::from_vec(v.to_owned())).collect();
+                    let payload = params[1].to_owned();
+                    Ok(Privmsg(source, recv, payload))
+                } else {
+                    Err(RawMessage::new(
+                        REPLY(ERR_NEEDMOREPARAMS), 
+                        &[
+                            raw.command().to_string().as_slice(),
+                            "not enought params given"
+                        ], 
+                        None
+                    ))
+                }
+            },
+            _ => Ok(Raw(raw))
+        }
+    }
+}
+
+impl Receiver {
+    /// Validates the raw channel name and converts it into a string. 
+    pub fn from_vec(recv: Vec<u8>) -> Receiver {
+        match String::from_utf8(recv) {
+            Err(recv) => InvalidReceiver(recv),
+            Ok(name) => 
+                if util::valid_channel(name.as_slice()) {
+                    ChannelName(name)
+                } else if util::valid_nick(name.as_slice()) {
+                    NickName(name)
+                } else { InvalidReceiver(name.into_bytes()) }
+        }
+    }
+}
+
 
 #[deriving(Show, Clone)]
 // Helper struct to efficently adress the different parts

@@ -1,7 +1,7 @@
 use collections::str::{from_utf8};
 
 /// Checks if the nickname is valid
-fn valid_nick(nick: &str) -> bool {
+pub fn valid_nick(nick: &str) -> bool {
     // <nick>       ::= <letter> { <letter> | <number> | <special> }
     //<special>    ::= '-' | '[' | ']' | '\' | '`' | '^' | '{' | '}'
     // 
@@ -31,7 +31,7 @@ pub fn verify_nick<'a>(nick: &'a [u8]) -> Option<&'a str> {
     }
 }
 
-fn valid_channel(channel: &str) -> bool {
+pub fn valid_channel(channel: &str) -> bool {
     for (i, char) in channel.chars().enumerate() {
         match char {
             '#' | '&' if i == 0 => {},

@@ -250,7 +250,7 @@ impl Channel {
     }
     
     /// handles private messages
-    pub fn handle_msg(&mut self, client_id: ClientId, message: RawMessage) {
+    pub fn handle_privmsg(&mut self, client_id: ClientId, message: RawMessage) {
         let nick = self.nicknames.find(&client_id).clone();
         let maybe_member = match nick {
             Some(nick) => self.members.find(nick),
