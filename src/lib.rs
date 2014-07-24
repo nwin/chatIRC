@@ -1,4 +1,4 @@
-#![crate_name = "rusty-irc"]
+#![crate_name = "rircd"]
 #![unstable]
 #![comment = "IRC daemon written in pure rust, doomed to be fast"]
 #![license = "MIT/ASL2"]
@@ -22,7 +22,7 @@ pub mod channel;
 pub mod cmd;
 pub mod util;
 
-
+#[allow(dead_code)]
 fn main() {
     match run_server("localhost") {
         Ok(_) => {},
