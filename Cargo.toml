@@ -4,7 +4,7 @@ name = "rircd"
 version = "0.0.1-prealpha"
 authors = [ "nwin@users.noreply.github.com" ]
 
-[[lib]]
+[[bin]]
 
 name = "rircd" # the name of the executable to generate
-path = "src/lib.rs"
+path = "src/main.rs"
