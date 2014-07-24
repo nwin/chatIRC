@@ -2,6 +2,8 @@
 use std::io::{TcpListener};
 use std::io::{Listener, Acceptor};
 use std::io::{IoResult};
+use std::io::net;
+use std::io;
 use std::collections::hashmap::{HashMap};
 
 use message::{RawMessage};
@@ -13,6 +15,7 @@ use cmd::*;
 
 pub struct IrcServer {
     host: String,
+    ip: String,
     port: u16, 
     clients: HashMap<ClientId, SharedClient>,
     nicknames: HashMap<String, SharedClient>,
@@ -25,16 +28,32 @@ pub enum Event {
     CallMeMaybe(|RawMessage|: 'static+Send)
 }
 
+pub fn run_server(host: &str) -> IoResult<IrcServer> {
+    let server = try!(IrcServer::new(host));
+    server.serve_forever()
+}
+
 impl IrcServer {
     /// Creates a new IRC server instance.
-    pub fn new(host: &str, port: u16) -> IrcServer {
-        IrcServer {
-            host: String::from_str(host),
-            port: port,
+    pub fn new(host: &str) -> IoResult<IrcServer> {
+        let mut addresses = try!(net::get_host_addresses(host));
+        debug!("{}", addresses)
+        let ip = match addresses.as_slice().get(0) {
+            Some(ip) => ip,
+            None => return Err(io::IoError {
+                kind: io::OtherIoError,
+                desc: "cannnot resolve ip",
+                detail: None
+            })
+        };
+        Ok(IrcServer {
+            host: host.to_string(),
+            ip: format!("{}", ip),
+            port: 6667,
             clients: HashMap::new(),
             nicknames: HashMap::new(),
             channels: HashMap::new()
-        }
+        })
     }
     
     /// Starts the main loop and listens on the specified host and port.
@@ -68,8 +87,8 @@ impl IrcServer {
     }
     
     fn start_listening(&mut self) -> IoResult<Receiver<(Event)>>  {
-        let listener = TcpListener::bind(self.host.as_slice(), self.port);
-        debug!("started listening on {}:{}", self.host, self.port);
+        let listener = TcpListener::bind(self.ip.as_slice(), self.port);
+        debug!("started listening on {}:{} ({})", self.ip, self.port, self.host);
         let acceptor = try!(listener.listen());
         let (tx, rx) = channel();
         let host = self.host.clone();

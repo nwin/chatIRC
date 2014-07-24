@@ -11,6 +11,8 @@
 extern crate collections;
 extern crate libc;
 
+use server::{run_server};
+
 // pub only for documentation purposes
 pub mod message;
 pub mod client;
@@ -20,8 +22,9 @@ pub mod channel;
 pub mod cmd;
 pub mod util;
 
+
 fn main() {
-    match server::IrcServer::new("127.0.0.1", 6667).serve_forever() {
+    match run_server("localhost") {
         Ok(_) => {},
         Err(err) => error!("{}", err)
     }
