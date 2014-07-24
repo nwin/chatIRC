@@ -68,6 +68,13 @@ impl Show for ClientId {
     }
 }
 
+impl Clone for ClientId {
+    fn clone(&self) -> ClientId {
+        ClientId { id: [ self.id[0], self.id[1] ] }
+    }
+}
+
+
 impl Client {
     /// Spawns two threads for communication with the client
     /// Returns a SharedClient instance.
@@ -165,6 +172,11 @@ impl Client {
     #[inline]
     pub fn id(&self) -> ClientId {
         self.id
+    }
+    
+    /// Getter for sender
+    pub fn tx(&self) -> Sender<RawMessage> {
+        self.msg_tx.clone()
     }
 }
 

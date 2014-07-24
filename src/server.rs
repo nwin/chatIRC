@@ -5,7 +5,7 @@ use std::io::{IoResult};
 use std::collections::hashmap::{HashMap};
 
 use message::{RawMessage};
-use channel::{Channel};
+use channel::{Member, Channel};
 use client::{SharedClient, Client, ClientId};
 use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
 
@@ -21,7 +21,8 @@ pub struct IrcServer {
 
 pub enum Event {
     MessageReceived(ClientId, RawMessage),
-    ClientConnected(Client)
+    ClientConnected(Client),
+    CallMeMaybe(|RawMessage|: 'static+Send)
 }
 
 impl IrcServer {
@@ -59,7 +60,8 @@ impl IrcServer {
                 ClientConnected(client) => { 
                     let client = client.as_shared();
                     self.clients.insert(client.borrow().id(), client); 
-                }
+                },
+                CallMeMaybe(_) => {}
             }
         }
         Ok(self)
@@ -106,6 +108,7 @@ impl IrcServer {
             // by the socket timeout
             PONG => {},
             JOIN => self.handle_join(origin, message),
+            NAMES => self.handle_names(origin, message),
             NICK => self.handle_nick(origin, message),
             USER => self.handle_user(origin, message),
             PING => {}, // ignoring this message, I am a server
@@ -119,7 +122,7 @@ impl IrcServer {
     }
     
     /// Sends a welcome message to a newly registered client
-    fn welcome_user(&self, client: SharedClient) {
+    fn send_welcome_msg(&self, client: SharedClient) {
         client.borrow_mut().send_response(RPL_WELCOME, None, None)
     }
 
@@ -187,6 +190,30 @@ impl IrcServer {
         }
     }
     
+    /// Handles the NAMES command
+    fn handle_names(&mut self, origin: SharedClient, message: RawMessage) {
+        message.receivers_do_or_else( | recv | {
+            match recv {
+                ChannelName(ref name) => {
+                    match self.channels.find_mut(&name.to_string()) {
+                        Some(channel) => channel.handle_names(
+                            origin.borrow().id(),
+                            | m | origin.borrow_mut().send_msg(m)
+                        ),
+                        None => origin
+                            .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
+                                Some(*name), Some("No such channel"))
+                    }
+                },
+                _ => {}
+            }
+        }, || origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
+            Some(message.command().to_string().as_slice()),
+            Some("not enought params given")
+        )
+        )
+    }
+    
     /// Handles the USER command
     fn handle_user(&mut self, origin: SharedClient, message: RawMessage) {
         let params = message.params();
@@ -204,7 +231,7 @@ impl IrcServer {
                 );
             } else {
                 self.nicknames.insert(nick, origin.clone());
-                self.welcome_user(origin);
+                self.send_welcome_msg(origin);
             }
         } else {
             origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
@@ -230,7 +257,7 @@ impl IrcServer {
             match verify_receiver(params[0]) {
                 ChannelName(ref name) => {
                     match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => channel.handle_mode(origin, message.clone()),
+                        Some(channel) => channel.handle_mode(origin.borrow().id(), message.clone()),
                         None => origin
                             .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
                                 Some(*name), Some("No such channel"))
@@ -253,6 +280,7 @@ impl IrcServer {
     /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
     fn handle_join(&mut self, origin: SharedClient, message: RawMessage) {
         let params = message.params();
+        let host = self.host.clone();
         if params.len() > 0 {
             let passwords: Vec<&[u8]> = if params.len() > 1 {
                 params[1].as_slice().split(|c| *c == b',').collect()
@@ -263,9 +291,14 @@ impl IrcServer {
                 match verify_channel(channel_name) {
                     Some(channel) => {
                         self.channels.find_or_insert_with(channel.to_string(), |key| {
-                            Channel::new(key.clone())
+                            Channel::new(key.clone(), host.clone())
                         }).handle_join(
-                            origin.clone(), 
+                            Member::new(
+                                origin.borrow().id(),
+                                origin.borrow().nickname.clone(),
+                                self.host.clone(),
+                                origin.borrow().tx()
+                            ), 
                             passwords.as_slice().get(i).map(|v| *v)
                         )
                     },
