@@ -48,12 +48,13 @@ pub enum ChannelMode {
     InvitationMask = b'I' as int
 }
 
+/// Represents a channel member
 pub struct Member {
     tx: Sender<RawMessage>,
     id: ClientId,
     nick: String,
     decorated_nick: String,
-    pub flags: Flags,
+    flags: Flags,
     server_name: String,
 }
 
@@ -153,6 +154,7 @@ impl PartialEq for Member {
 
 impl Eq for Member {}
 
+/// Enumertion of channel modes / member flags
 pub type Flags = HashSet<ChannelMode>;
 
 /// Represents an IRC channel

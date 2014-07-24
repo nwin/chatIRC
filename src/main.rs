@@ -1,5 +1,5 @@
 #![crate_name = "rircd"]
-#![unstable]
+#![experimental]
 #![comment = "IRC daemon written in pure rust, doomed to be fast"]
 #![license = "MIT/ASL2"]
 #![crate_type = "bin"]
