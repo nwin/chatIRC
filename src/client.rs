@@ -15,18 +15,6 @@ use server::{Event, ClientConnected, MessageReceived};
 pub type SharedClient = Rc<RefCell<Client>>;
 pub type WeaklySharedClient = Weak<RefCell<Client>>;
 
-pub struct Client {
-    id: ClientId,
-    msg_tx: Sender<RawMessage>,
-    stream: TcpStream,
-    server_host: String,
-    hostname: String,
-    pub ip: String,
-    pub nickname: String,
-    pub username: String,
-    pub realname: String,
-}
-
 /// Unique client id
 #[deriving(Hash)]
 pub struct ClientId {
@@ -89,6 +77,20 @@ impl ClientProxy {
         self.tx.send(msg)
     }
 }
+
+
+pub struct Client {
+    id: ClientId,
+    msg_tx: Sender<RawMessage>,
+    stream: TcpStream,
+    server_host: String,
+    hostname: String,
+    pub ip: String,
+    pub nickname: String,
+    pub username: String,
+    pub realname: String,
+}
+
 
 impl Client {
     /// Spawns two threads for communication with the client

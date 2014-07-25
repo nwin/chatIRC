@@ -47,22 +47,29 @@ pub struct IrcServer {
     ip: String,
     port: u16, 
     tx: Option<Sender<Event>>,
+    // TODO put unregisterd clients in a staging Map
     clients: HashMap<ClientId, SharedClient>,
     nicknames: HashMap<String, SharedClient>,
     channels: HashMap<String, ChannelProxy>
 }
 
+/// Enumeration of the events the server can receive
 pub enum Event {
+    /// Message received from a client
     MessageReceived(ClientId, RawMessage),
+    /// Connection to a client established
     ClientConnected(Client),
+    /// The task of Channel(name) failed
     ChannelLost(String),
 }
 
+/// Convenience function to run the server
 pub fn run_server(host: &str) -> IoResult<IrcServer> {
     let server = try!(IrcServer::new(host));
     server.serve_forever()
 }
 
+/// Irc server
 impl IrcServer {
     /// Creates a new IRC server instance.
     pub fn new(host: &str) -> IoResult<IrcServer> {
