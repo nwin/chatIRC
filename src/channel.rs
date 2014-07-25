@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::collections::enum_set::{CLike};
 
 use client::{ClientId};
 use message::{RawMessage};
 
-use cmd::*;
+use cmd;
 
 /// Enumeration of possible channel modes
 /// as of http://tools.ietf.org/html/rfc2811#section-4
@@ -71,8 +70,8 @@ impl Member {
         }
     }
     
-    pub fn send_response(&self, command: ResponseCode, params: &[&str]) {
-        self.send_msg(RawMessage::new(REPLY(command), 
+    pub fn send_response(&self, command: cmd::ResponseCode, params: &[&str]) {
+        self.send_msg(RawMessage::new(cmd::REPLY(command), 
             params,
             Some(self.server_name.as_slice())))
     }
@@ -157,6 +156,20 @@ impl Eq for Member {}
 /// Enumertion of channel modes / member flags
 pub type Flags = HashSet<ChannelMode>;
 
+/// Enumeration of command a channel can handle
+enum ChannelCommand {
+    PRIVMSG,
+    LEAVE,
+    MODE
+}
+
+/// Enumeration of events a channel can receive
+enum ChannelEvent {
+    Message(ClientId, ChannelCommand, RawMessage),
+    Join(Member, Option<Vec<u8>>),
+    Reply(ClientId, ChannelCommand, |RawMessage|: 'static+Send)
+}
+
 /// Represents an IRC channel
 pub struct Channel {
     name: String,
@@ -181,6 +194,34 @@ impl Channel {
         }
     }
     
+    /// Starts listening for events in a separate thread
+    pub fn listen(self) -> Sender<ChannelEvent> {
+        let (tx, rx) = channel();
+        spawn(proc() {
+            let mut this = self;
+            for event in rx.iter() {
+                this.dispatch(event)
+            }
+        });
+        tx
+    }
+    
+    fn dispatch(&mut self, event: ChannelEvent) {
+        match event {
+            Message(client_id, command, message) => {
+                match command {
+                    PRIVMSG => self.handle_privmsg(client_id, message),
+                    LEAVE => self.handle_leave(client_id, message),
+                    MODE => self.handle_mode(client_id, message),
+                }
+            }
+            Join(member, password) => 
+                self.handle_join(member, password),
+            Reply(client_id, _, callback) => 
+                self.handle_names(client_id, callback)
+        }
+    }
+    
     fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
         let nick = self.nicknames.find(&client_id).clone();
         match nick {
@@ -198,7 +239,7 @@ impl Channel {
     }
     
     fn broadcast_mode(&self, member: &Member) {
-        let msg = RawMessage::new(MODE, [
+        let msg = RawMessage::new(cmd::MODE, [
             self.name.as_slice(),
             member.flags().as_slice(), 
             member.nick()], Some(self.server_name.as_slice()));
@@ -212,7 +253,7 @@ impl Channel {
         // TODO check if channel is visible to user…
         for (_, member) in self.members.iter() {
             sender(
-                RawMessage::new(REPLY(RPL_NAMREPLY), 
+                RawMessage::new(cmd::REPLY(cmd::RPL_NAMREPLY), 
                 [String::from_str("= ").append(self.name.as_slice()).as_slice(),
                  member.decorated_nick()   
                 ],
@@ -220,18 +261,18 @@ impl Channel {
             )
         }
         sender(
-            RawMessage::new(REPLY(RPL_ENDOFNAMES), 
+            RawMessage::new(cmd::REPLY(cmd::RPL_ENDOFNAMES), 
             [self.name.as_slice(), "End of /NAMES list"],
             Some(self.server_name.as_slice()))
         )
     }
     
     /// Handles the join attempt of a user
-    pub fn handle_join(&mut self, mut member: Member, password: Option<&[u8]>) {
+    pub fn handle_join(&mut self, mut member: Member, password: Option<Vec<u8>>) {
         if self.password.len() != 0 {
-            if !match password { Some(password) => password == self.password.as_slice(),
+            if !match password { Some(password) => password == self.password,
                                  None => false } {
-                member.send_response(ERR_BADCHANNELKEY,
+                member.send_response(cmd::ERR_BADCHANNELKEY,
                     [self.name.as_slice(),
                     "Password is wrong"]
                 );
@@ -242,10 +283,10 @@ impl Channel {
             //member already in channel
             return
         }
-        member.send_response(RPL_NOTOPIC, 
+        member.send_response(cmd::RPL_NOTOPIC, 
             [self.name.as_slice(), "No topic set."]);
         let msg = RawMessage::new(
-            JOIN, 
+            cmd::JOIN, 
             &[self.name.as_slice()],
             Some(member.nick())
         );
@@ -300,7 +341,7 @@ impl Channel {
             
             error!("TODO: implement mode setting") 
         } else {
-            member.send_response(RPL_CHANNELMODEIS,
+            member.send_response(cmd::RPL_CHANNELMODEIS,
                 [self.name.as_slice(), 
                  ("+".to_string() + self.flags.iter().map( |c| 
                      *c as u8 as char).collect::<String>() 

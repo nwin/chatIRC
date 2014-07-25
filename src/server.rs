@@ -25,7 +25,6 @@ pub struct IrcServer {
 pub enum Event {
     MessageReceived(ClientId, RawMessage),
     ClientConnected(Client),
-    CallMeMaybe(|RawMessage|: 'static+Send)
 }
 
 pub fn run_server(host: &str) -> IoResult<IrcServer> {
@@ -79,8 +78,7 @@ impl IrcServer {
                 ClientConnected(client) => { 
                     let client = client.as_shared();
                     self.clients.insert(client.borrow().id(), client); 
-                },
-                CallMeMaybe(_) => {}
+                }
             }
         }
         Ok(self)
@@ -318,7 +316,7 @@ impl IrcServer {
                                 self.host.clone(),
                                 origin.borrow().tx()
                             ), 
-                            passwords.as_slice().get(i).map(|v| *v)
+                            passwords.as_slice().get(i).map(|v| v.to_owned())
                         )
                     },
                     None => origin.borrow_mut().send_response(ERR_NOSUCHCHANNEL,
