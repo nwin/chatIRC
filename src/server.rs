@@ -7,24 +7,55 @@ use std::io;
 use std::collections::hashmap::{HashMap};
 
 use message::{RawMessage};
-use channel::{Member, Channel};
+use channel::{Member, Channel, ChannelEvent};
+use channel;
 use client::{SharedClient, Client, ClientId};
 use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
 
 use cmd::*;
 
+
+/// Forwards the message to a channel
+struct ChannelProxy {
+    name: String,
+    tx: Sender<ChannelEvent>,
+    server_tx: Sender<Event>
+}
+
+impl ChannelProxy {
+    fn new(name: String,
+           tx: Sender<ChannelEvent>, 
+           server_tx: Sender<Event>) -> ChannelProxy {
+        ChannelProxy {
+            name: name,
+            tx: tx,
+            server_tx: server_tx
+        }
+    }
+    fn send(&self, event: ChannelEvent) {
+        match self.tx.send_opt(event) {
+            Ok(_) => {},
+            Err(err) => {
+                let _ = self.server_tx.send_opt(ChannelLost(self.name.clone()));
+            }
+        }
+    }
+}
+
 pub struct IrcServer {
     host: String,
     ip: String,
     port: u16, 
+    tx: Option<Sender<Event>>,
     clients: HashMap<ClientId, SharedClient>,
     nicknames: HashMap<String, SharedClient>,
-    channels: HashMap<String, Channel>
+    channels: HashMap<String, ChannelProxy>
 }
 
 pub enum Event {
     MessageReceived(ClientId, RawMessage),
     ClientConnected(Client),
+    ChannelLost(String),
 }
 
 pub fn run_server(host: &str) -> IoResult<IrcServer> {
@@ -35,7 +66,7 @@ pub fn run_server(host: &str) -> IoResult<IrcServer> {
 impl IrcServer {
     /// Creates a new IRC server instance.
     pub fn new(host: &str) -> IoResult<IrcServer> {
-        let mut addresses = try!(net::get_host_addresses(host));
+        let addresses = try!(net::get_host_addresses(host));
         debug!("{}", addresses)
         let ip = match addresses.as_slice().get(0) {
             Some(ip) => ip,
@@ -49,6 +80,7 @@ impl IrcServer {
             host: host.to_string(),
             ip: format!("{}", ip),
             port: 6667,
+            tx: None,
             clients: HashMap::new(),
             nicknames: HashMap::new(),
             channels: HashMap::new()
@@ -79,6 +111,9 @@ impl IrcServer {
                     let client = client.as_shared();
                     self.clients.insert(client.borrow().id(), client); 
                 }
+                ChannelLost(name) => {
+                    self.channels.remove(&name);
+                }
             }
         }
         Ok(self)
@@ -86,9 +121,10 @@ impl IrcServer {
     
     fn start_listening(&mut self) -> IoResult<Receiver<(Event)>>  {
         let listener = TcpListener::bind(self.ip.as_slice(), self.port);
-        debug!("started listening on {}:{} ({})", self.ip, self.port, self.host);
+        info!("started listening on {}:{} ({})", self.ip, self.port, self.host);
         let acceptor = try!(listener.listen());
         let (tx, rx) = channel();
+        self.tx = Some(tx.clone());
         let host = self.host.clone();
         spawn(proc() {
             let mut a = acceptor; // https://github.com/rust-lang/rust/issues/11958
@@ -152,7 +188,11 @@ impl IrcServer {
                 match receiver {
                     ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
                         Some(channel) => 
-                            channel.handle_privmsg(origin.borrow().id(), message.clone()),
+                            channel.send(channel::Message(
+                                channel::PRIVMSG,
+                                origin.borrow().id(),
+                                message.clone(),
+                            )),
                         None => {}
                     },
                     NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
@@ -213,10 +253,13 @@ impl IrcServer {
             match recv {
                 ChannelName(ref name) => {
                     match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => channel.handle_names(
-                            origin.borrow().id(),
-                            | m | origin.borrow_mut().send_msg(m)
-                        ),
+                        Some(channel) => {
+                            channel.send(channel::Reply(
+                                channel::NAMES,
+                                origin.borrow().id(),
+                                origin.borrow().proxy()
+                            ))
+                        } 
                         None => origin
                             .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
                                 Some(*name), Some("No such channel"))
@@ -274,7 +317,11 @@ impl IrcServer {
             match verify_receiver(params[0]) {
                 ChannelName(ref name) => {
                     match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => channel.handle_mode(origin.borrow().id(), message.clone()),
+                        Some(channel) => channel.send(channel::Message(
+                                channel::MODE,
+                                origin.borrow().id(), 
+                                message.clone()
+                        )),
                         None => origin
                             .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
                                 Some(*name), Some("No such channel"))
@@ -307,16 +354,24 @@ impl IrcServer {
             for (i, channel_name) in params[0].as_slice().split(|c| *c == b',').enumerate() {
                 match verify_channel(channel_name) {
                     Some(channel) => {
+                        let tx = self.tx.clone().unwrap();
                         self.channels.find_or_insert_with(channel.to_string(), |key| {
-                            Channel::new(key.clone(), host.clone())
-                        }).handle_join(
-                            Member::new(
-                                origin.borrow().id(),
-                                origin.borrow().nickname.clone(),
-                                self.host.clone(),
-                                origin.borrow().tx()
-                            ), 
-                            passwords.as_slice().get(i).map(|v| v.to_owned())
+                            ChannelProxy::new(
+                                key.clone(),
+                                Channel::new(key.clone(), host.clone()).listen(),
+                                // this should exist by now
+                                tx.clone()
+                            )
+                        }).send(
+                            channel::Join(
+                                Member::new(
+                                    origin.borrow().id(),
+                                    origin.borrow().nickname.clone(),
+                                    self.host.clone(),
+                                    origin.borrow().proxy()
+                                ), 
+                                passwords.as_slice().get(i).map(|v| v.to_vec())
+                            )
                         )
                     },
                     None => origin.borrow_mut().send_response(ERR_NOSUCHCHANNEL,

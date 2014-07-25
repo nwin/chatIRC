@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use client::{ClientId};
+use client::{ClientId, ClientProxy};
 use message::{RawMessage};
 
 use cmd;
@@ -49,8 +49,8 @@ pub enum ChannelMode {
 
 /// Represents a channel member
 pub struct Member {
-    tx: Sender<RawMessage>,
     id: ClientId,
+    proxy: ClientProxy,
     nick: String,
     decorated_nick: String,
     flags: Flags,
@@ -59,10 +59,10 @@ pub struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: ClientId, nick: String, server_name: String, tx: Sender<RawMessage>) -> Member {
+    pub fn new(id: ClientId, nick: String, server_name: String, proxy: ClientProxy) -> Member {
         Member {
             id: id,
-            tx: tx,
+            proxy: proxy,
             nick: nick.clone(),
             decorated_nick: nick,
             flags: HashSet::new(),
@@ -78,7 +78,7 @@ impl Member {
     
     /// Sends a message to the client
     pub fn send_msg(&self, msg: RawMessage) {
-        self.tx.send(msg)
+        self.proxy.send_msg(msg)
     }
     
     /// Grant a privilege to a member
@@ -142,6 +142,11 @@ impl Member {
     pub fn id(&self) -> ClientId {
         self.id.clone()
     }
+    
+    /// Getter for the client proxy
+    pub fn proxy(&self) -> &ClientProxy {
+        &self.proxy
+    }
 }
 
 impl PartialEq for Member {
@@ -157,17 +162,20 @@ impl Eq for Member {}
 pub type Flags = HashSet<ChannelMode>;
 
 /// Enumeration of command a channel can handle
-enum ChannelCommand {
+pub enum ChannelCommand {
     PRIVMSG,
     LEAVE,
     MODE
 }
+pub enum ChannelResponse {
+    NAMES
+}
 
 /// Enumeration of events a channel can receive
-enum ChannelEvent {
-    Message(ClientId, ChannelCommand, RawMessage),
+pub enum ChannelEvent {
+    Message(ChannelCommand, ClientId, RawMessage),
     Join(Member, Option<Vec<u8>>),
-    Reply(ClientId, ChannelCommand, |RawMessage|: 'static+Send)
+    Reply(ChannelResponse, ClientId, ClientProxy)
 }
 
 /// Represents an IRC channel
@@ -208,7 +216,7 @@ impl Channel {
     
     fn dispatch(&mut self, event: ChannelEvent) {
         match event {
-            Message(client_id, command, message) => {
+            Message(command, client_id, message) => {
                 match command {
                     PRIVMSG => self.handle_privmsg(client_id, message),
                     LEAVE => self.handle_leave(client_id, message),
@@ -217,8 +225,8 @@ impl Channel {
             }
             Join(member, password) => 
                 self.handle_join(member, password),
-            Reply(client_id, _, callback) => 
-                self.handle_names(client_id, callback)
+            Reply( _, client_id, proxy) => 
+                self.handle_names(client_id, &proxy)
         }
     }
     
@@ -249,10 +257,10 @@ impl Channel {
     }
     
     /// Sends the list of users to the client
-    pub fn handle_names(&self, client_id: ClientId, sender: |RawMessage|) {
+    pub fn handle_names(&self, client_id: ClientId, proxy: &ClientProxy) {
         // TODO check if channel is visible to user…
         for (_, member) in self.members.iter() {
-            sender(
+            proxy.send_msg(
                 RawMessage::new(cmd::REPLY(cmd::RPL_NAMREPLY), 
                 [String::from_str("= ").append(self.name.as_slice()).as_slice(),
                  member.decorated_nick()   
@@ -260,7 +268,7 @@ impl Channel {
                 Some(self.server_name.as_slice()))
             )
         }
-        sender(
+        proxy.send_msg(
             RawMessage::new(cmd::REPLY(cmd::RPL_ENDOFNAMES), 
             [self.name.as_slice(), "End of /NAMES list"],
             Some(self.server_name.as_slice()))
@@ -301,9 +309,7 @@ impl Channel {
             member.send_msg(msg.clone())
         }
         let member = self.member_with_id(id).unwrap();
-        self.handle_names(id, |msg| {
-            member.send_msg(msg)
-        });
+        self.handle_names(id, member.proxy());
         if self.members.len() == 1 { // first user
             self.broadcast_mode(member)
         }

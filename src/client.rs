@@ -74,6 +74,21 @@ impl Clone for ClientId {
     }
 }
 
+/// Proxy that forwards a message to a client
+pub struct ClientProxy {
+    tx: Sender<RawMessage>
+}
+
+impl ClientProxy {
+    fn new(tx: Sender<RawMessage>) -> ClientProxy {
+        ClientProxy {
+            tx: tx
+        }
+    }
+    pub fn send_msg(&self, msg: RawMessage) {
+        self.tx.send(msg)
+    }
+}
 
 impl Client {
     /// Spawns two threads for communication with the client
@@ -174,9 +189,9 @@ impl Client {
         self.id
     }
     
-    /// Getter for sender
-    pub fn tx(&self) -> Sender<RawMessage> {
-        self.msg_tx.clone()
+    /// Returns a proxy to the current client
+    pub fn proxy(&self) -> ClientProxy {
+        ClientProxy::new(self.msg_tx.clone())
     }
 }
 
