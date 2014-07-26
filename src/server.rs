@@ -35,7 +35,7 @@ impl ChannelProxy {
     fn send(&self, event: ChannelEvent) {
         match self.tx.send_opt(event) {
             Ok(_) => {},
-            Err(err) => {
+            Err(_) => {
                 let _ = self.server_tx.send_opt(ChannelLost(self.name.clone()));
             }
         }

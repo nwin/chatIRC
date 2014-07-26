@@ -59,12 +59,13 @@ impl RawMessage {
         let msg_params = params.iter().enumerate().map( |(i, &param)| {
             let bytes = param.as_bytes();
             raw_message.push(b' ');
-            if i + 1 == num_params {
+            let offset = if i + 1 == num_params {
                 raw_message.push(b':');
-            }
+                1
+            } else { 0 };
             raw_message.push_all(bytes);
-            let end = start + 1 + bytes.len();
-            let slice = ASlice { start: start + 1, end: end };
+            let end = start + 1 + bytes.len() + offset;
+            let slice = ASlice { start: start + 1 + offset, end: end };
             start = end;
             slice
         }).collect();
@@ -206,7 +207,7 @@ mod tests {
         let m = RawMessage::parse(":prefix JOIN #channel".as_bytes()).unwrap();
         assert_eq!(m.prefix().unwrap(), b"prefix")
         assert!(match m.command() {JOIN => true, _ => false})
-        assert_eq!(m.params().unwrap()[0], b"#channel")
+        assert_eq!(m.params()[0], b"#channel")
 	}
 	/// Test the prefix setter
 	#[test]
@@ -216,16 +217,16 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(m.prefix().unwrap()).to_owned(),
                    String::from_str("new prefix").to_owned())
         assert!(match m.command() {JOIN => true, _ => false})
-        assert_eq!(m.params().unwrap()[0], b"#channel")
+        assert_eq!(m.params()[0], b"#channel")
         assert_eq!(m.as_slice(), b":new prefix JOIN #channel")
 	}
 	/// Test message creation
 	#[test]
 	fn test_msg_new() {
-        let m = RawMessage::new(JOIN, Some(&["#channel"]), Some("prefix"));
+        let m = RawMessage::new(JOIN, &["#channel"], Some("prefix"));
         assert_eq!(m.prefix().unwrap(), b"prefix")
         assert!(match m.command() {JOIN => true, _ => false})
-        assert_eq!(m.params().unwrap()[0], b"#channel")
-        assert_eq!(m.as_slice(), b":prefix JOIN #channel")
+        assert_eq!(m.params()[0], b"#channel")
+        assert_eq!(m.as_slice(), b":prefix JOIN :#channel")
 	}
 }

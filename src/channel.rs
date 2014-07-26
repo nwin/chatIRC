@@ -16,7 +16,7 @@ pub enum ChannelMode {
     /// give/take the voice privilege
     VoicePrivilege = b'v' as int,
     /// toggle the anonymous channel flag
-    AnonFlag = b'a' as int,
+    AnonChannel = b'a' as int,
     /// toggle the invite-only channel flag
     InviteOnly = b'i' as int,
     /// toggle the moderated channel
@@ -47,6 +47,74 @@ pub enum ChannelMode {
     InvitationMask = b'I' as int
 }
 
+impl ChannelMode {
+    fn has_parameter(&self) -> bool {
+        match *self {
+            ChannelKey | UserLimit | BanMask
+            | ExceptionMask | InvitationMask => true,
+            _ => false
+        }
+    }
+}
+
+/// Parses the channel modes
+///
+/// According to [RFC 2812] (http://tools.ietf.org/html/rfc2812#section-3.2.3) the
+/// syntax for setting modes is:
+/// ```
+///    Command: MODE
+/// Parameters: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
+/// ```
+///
+/// Additionally an example is given
+///
+/// ```
+/// MODE &oulu +b *!*@*.edu +e *!*@*.bu.edu
+///                                 ; Command to prevent any user from a
+///                                 hostname matching *.edu from joining,
+///                                 except if matching *.bu.edu
+/// 
+/// MODE #bu +be *!*@*.edu *!*@*.bu.edu
+///                                 ; Comment to prevent any user from a
+///                                 hostname matching *.edu from joining,
+///                                 except if matching *.bu.edu
+/// ```
+/// 
+/// 
+fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
+    let mut current = slice;
+    loop {
+        let set = match current[0][0] {
+            b'+' => true,
+            b'-' => false,
+            _ => {
+                if current.len() > 1 {
+                    current = current.slice_from(1);
+                    continue
+                } else { break }
+            }
+            
+        };
+        for mode in current[0].slice_from(1).iter().filter_map( |&v| {
+            let m: Option<ChannelMode> = FromPrimitive::from_u8(v); m
+        }) {
+            let param = if mode.has_parameter() {
+                let param = current.get(1).map(|v| *v);
+                if current.len() > 1 {
+                    current = current.slice_from(1);
+                } else { current = &[]; }
+                param
+            } else {
+                None
+            };
+            block(set, mode, param);
+        }
+        if current.len() > 1 {
+            current = current.slice_from(1);
+        } else { break }
+    }
+}
+
 /// Represents a channel member
 pub struct Member {
     id: ClientId,
@@ -56,6 +124,10 @@ pub struct Member {
     flags: Flags,
     server_name: String,
 }
+
+
+
+
 
 impl Member {
     /// Creates a new member
@@ -84,6 +156,12 @@ impl Member {
     /// Grant a privilege to a member
     pub fn promote(&mut self, flag: ChannelMode) {
         self.flags.insert(flag);
+        self.update_decorated_nick();
+    }
+    
+    /// Take a privilege from a member
+    pub fn demote(&mut self, flag: ChannelMode) {
+        self.flags.remove(&flag);
         self.update_decorated_nick();
     }
     
@@ -181,24 +259,30 @@ pub enum ChannelEvent {
 /// Represents an IRC channel
 pub struct Channel {
     name: String,
+    server_name: String,
     topic: String,
     password: Vec<u8>,
     flags: Flags,
     members: HashMap<String, Member>,
     nicknames: HashMap<ClientId, String>,
-    server_name: String,
+    ban_masks: HashSet<String>,
+    except_masks: HashSet<String>,
+    invite_masks: HashSet<String>,
 }
 
 impl Channel {
     pub fn new(name: String, server_name: String) -> Channel {
         Channel {
             name: name,
+            server_name: server_name,
             topic: "".to_string(),
             password: Vec::new(),
             flags: HashSet::new(),
             members: HashMap::new(),
             nicknames: HashMap::new(),
-            server_name: server_name,
+            ban_masks: HashSet::new(),
+            except_masks: HashSet::new(),
+            invite_masks: HashSet::new(),
         }
     }
     
@@ -334,19 +418,76 @@ impl Channel {
         self.members.remove(&nick);
     }
     
-    /// handles the mode message
+    /// Handles the channel mode message
     pub fn handle_mode(&mut self, client_id: ClientId, message: RawMessage) {
-        let member = match self.member_with_id(client_id) {
-            Some(member) => member,
-            None => return // TODO error message
-        };
+        let is_op = { match self.member_with_id(client_id) {
+            Some(member) => member.is_op(),
+            None => false
+        }};
         let params = message.params();
         if params.len() > 1 {
-            if member.is_op() {
-            }
-            
-            error!("TODO: implement mode setting") 
+            if !is_op { return } // TODO: error message
+            modes_do(params.slice_from(1), | set, mode, parameter | {
+                match mode {
+                    AnonChannel | InviteOnly | Moderated | MemberOnly 
+                    | Quiet | Private | Secret | ReOpFlag | TopicProtect => {
+                        if set {
+                            self.flags.insert(mode);
+                        } else {
+                            self.flags.remove(&mode);
+                        }
+                        
+                    },
+                    OperatorPrivilege | VoicePrivilege => {
+                        match parameter { Some(name) => {
+                                match self.members
+                                .find_mut(&name.to_string()) {
+                                    Some(member) => if set {
+                                        member.promote(mode)
+                                    } else {
+                                        member.demote(mode)
+                                    }, None => {}
+                                }
+                            }, None => {}
+                        }
+                    },
+                    ChannelKey => {
+                        match parameter { Some(password) => {
+                                self.password = password.to_vec()
+                            }, None => {}
+                        }
+                    },
+                    UserLimit => {
+                        error!("UserLimit mode not implemented yet")
+                    },
+                    BanMask => {
+                        match parameter { Some(mask) => {
+                                self.ban_masks.insert(mask.to_string());
+                            }, None => {}
+                        }
+                    },
+                    ExceptionMask => {
+                        match parameter { Some(mask) => {
+                                self.except_masks.insert(mask.to_string());
+                            }, None => {}
+                        }
+                    },
+                    InvitationMask => {
+                        match parameter { Some(mask) => {
+                                self.invite_masks.insert(mask.to_string());
+                            }, None => {}
+                        }
+                    },
+                    ChannelCreator => {
+                        // This is can't be set after channel creation 
+                    },
+                }
+            });
         } else {
+            let member = match self.member_with_id(client_id) {
+                Some(member) => member,
+                None => return // todo error message
+            };
             member.send_response(cmd::RPL_CHANNELMODEIS,
                 [self.name.as_slice(), 
                  ("+".to_string() + self.flags.iter().map( |c| 
@@ -395,6 +536,42 @@ impl Channel {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{modes_do, BanMask, ExceptionMask};
+    use message::{RawMessage};
+	/// Tests the mode parser
     
     
+    
+	#[test]
+	fn test_mode_parser() {
+        let msgs = [
+            b"MODE &oulu +b *!*@*.edu +e *!*@*.bu.edu",
+            b"MODE #bu +be *!*@*.edu *!*@*.bu.edu",
+            b"MODE #bu /i", // Invalid mode should be skipped
+            b"MODE #bu +g", // Invalid mode should be skipped
+        ];
+        let modes = [
+            vec![(true, BanMask, Some(b"*!*@*.edu")),
+            (true, ExceptionMask, Some(b"*!*@*.bu.edu"))],
+            vec![(true, BanMask, Some(b"*!*@*.edu")),
+            (true, ExceptionMask, Some(b"*!*@*.bu.edu"))],
+            Vec::new(),
+            Vec::new(),
+        ];
+        for (msg, modes) in msgs.iter().zip(modes.iter()) {
+            let m = RawMessage::parse(*msg).unwrap();
+            let mut mode_iter = modes.iter();
+            modes_do(m.params().slice_from(1), |set, mode, parameter| {
+                println!("{}",set);
+                let (set_, mode_, parameter_) = *mode_iter.next().unwrap();
+                assert_eq!(set_, set);
+                assert_eq!(mode_, mode);
+                assert_eq!(parameter_.to_string(), parameter.to_string());
+            })
+        }
+	}
 }
