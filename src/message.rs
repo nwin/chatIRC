@@ -29,12 +29,7 @@ pub struct RawMessage {
 
 /// Searches a slice for the first occurence of needle
 fn position<T: PartialEq>(this: &[T], needle: &[T]) -> Option<uint> {
-    for i in range(0, this.len()) {
-        if this.slice_from(i).starts_with(needle) {
-            return Some(i)
-        }
-    }
-    None
+    this.windows(needle.len()).position(|v| v == needle)
 }
 
 impl RawMessage {
