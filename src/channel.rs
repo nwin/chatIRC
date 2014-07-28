@@ -461,23 +461,21 @@ impl Channel {
                     UserLimit => {
                         error!("UserLimit mode not implemented yet")
                     },
-                    BanMask => {
-                        match parameter { Some(mask) => {
-                                self.ban_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
-                            }, None => {}
-                        }
-                    },
-                    ExceptionMask => {
-                        match parameter { Some(mask) => {
-                                self.except_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
-                            }, None => {}
-                        }
-                    },
-                    InvitationMask => {
-                        match parameter { Some(mask) => {
-                                self.invite_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
-                            }, None => {}
-                        }
+                    BanMask | ExceptionMask | InvitationMask => match parameter { 
+                        Some(mask) => {
+                            let host_mask = HostMask::new(
+                                String::from_utf8_lossy(mask).to_string()
+                            );
+                            match mode {
+                                BanMask =>
+                                    {let _ = self.ban_masks.insert(host_mask);},
+                                ExceptionMask =>
+                                    {let _ = self.except_masks.insert(host_mask);},
+                                InvitationMask =>
+                                    {let _ = self.invite_masks.insert(host_mask);},
+                                _ => unreachable!()
+                            }
+                        }, None => {}
                     },
                     ChannelCreator => {
                         // This is can't be set after channel creation 
