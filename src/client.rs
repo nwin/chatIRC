@@ -74,7 +74,7 @@ impl ClientProxy {
         }
     }
     pub fn send_msg(&self, msg: RawMessage) {
-        self.tx.send(msg)
+        let _ = self.tx.send_opt(msg);
     }
 }
 
@@ -176,7 +176,7 @@ impl Client {
     /// Sends a message to the client.
     /// Returns immediately.
     pub fn send_msg(&self, message: RawMessage) {
-        self.msg_tx.send(message)
+        let _ = self.msg_tx.send(message);
     }
     
     /// Closes the connection to the client
