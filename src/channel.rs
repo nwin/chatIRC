@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use client::{ClientId, ClientProxy};
 use message::{RawMessage};
+use util::{HostMask};
 
 use cmd;
 
@@ -265,9 +266,9 @@ pub struct Channel {
     flags: Flags,
     members: HashMap<String, Member>,
     nicknames: HashMap<ClientId, String>,
-    ban_masks: HashSet<String>,
-    except_masks: HashSet<String>,
-    invite_masks: HashSet<String>,
+    ban_masks: HashSet<HostMask>,
+    except_masks: HashSet<HostMask>,
+    invite_masks: HashSet<HostMask>,
 }
 
 impl Channel {
@@ -462,19 +463,19 @@ impl Channel {
                     },
                     BanMask => {
                         match parameter { Some(mask) => {
-                                self.ban_masks.insert(mask.to_string());
+                                self.ban_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
                             }, None => {}
                         }
                     },
                     ExceptionMask => {
                         match parameter { Some(mask) => {
-                                self.except_masks.insert(mask.to_string());
+                                self.except_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
                             }, None => {}
                         }
                     },
                     InvitationMask => {
                         match parameter { Some(mask) => {
-                                self.invite_masks.insert(mask.to_string());
+                                self.invite_masks.insert(HostMask::new(String::from_utf8_lossy(mask).to_string()));
                             }, None => {}
                         }
                     },

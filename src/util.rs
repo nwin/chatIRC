@@ -73,9 +73,41 @@ pub fn verify_receiver<'a>(recv: &'a [u8]) -> Receiver<'a> {
     }
 }
 
+
+#[deriving(Hash, PartialEq, Eq)]
+pub struct HostMask {
+    mask: String
+}
+
+impl HostMask {
+    pub fn new(mask: String) -> HostMask {
+        HostMask {
+            mask: mask
+        }
+    }
+    fn matches(&self, hostname: &str) -> bool {
+        let mut name_chars = hostname.chars().peekable();
+        let mask = self.mask.as_slice();
+        for (c, next) in mask.chars().zip({let mut n = mask.chars(); n.next(); n}) {
+            match c {
+                '*' => { while match name_chars.peek() {
+                    Some(&name_cha) => name_cha != next,
+                    None => false } { let _ = name_chars.next(); }
+                },
+                cha => match name_chars.next() {
+                    None => return false,
+                    Some(name_cha) => if cha != name_cha { return false }
+                }
+            }
+        }
+        true
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
-	use super::{valid_nick, valid_channel};
+	use super::{valid_nick, valid_channel, HostMask};
 	#[test]
 	/// Test the nickname validation function
 	fn test_nickname_validation() {
@@ -91,4 +123,17 @@ mod tests {
 		assert_eq!(valid_channel("#Foo,bar"), false)
 		assert_eq!(valid_channel("Foo bar"), false)
 	}
+    
+    #[test]
+    /// Test the hostname masks
+	fn test_masks() {
+		assert!(HostMask::new("*!*@*.com".to_string()).matches("a!b@example.com"))
+		assert!(!HostMask::new("*!*@*.com".to_string()).matches("*!*@*.edu"))
+		assert!(HostMask::new("*!*@example.com".to_string()).matches("a!b@example.com"))
+		assert!(HostMask::new("foo!*@*.com".to_string()).matches("foo!bar@example.com"))
+		assert!(!HostMask::new("foo!*@*.com".to_string()).matches("baz!bar@example.com"))
+		assert!(HostMask::new("*!bar@*.com".to_string()).matches("foo!bar@example.com"))
+		assert!(!HostMask::new("*!bar@*.com".to_string()).matches("foo!baz@example.com"))
+	}
+    
 }
