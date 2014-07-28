@@ -212,7 +212,7 @@ mod net {
     use std::io::net::ip::{SocketAddr, Ipv4Addr, Ipv6Addr};
     use libc::{malloc, sockaddr, sockaddr_in, sockaddr_in6, in_addr, in6_addr, c_int, c_char, socklen_t, AF_INET, AF_INET6};
     use std::mem::{size_of, transmute};
-    use std::str;
+    use std::string;
 
     /*
      const char *
@@ -272,7 +272,7 @@ mod net {
             }
        
         };
-        unsafe {str::raw::from_c_str(transmute(buf))}
+        unsafe {string::raw::from_buf(transmute(buf))}
     
     }
 }
