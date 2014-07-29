@@ -75,6 +75,7 @@ pub fn verify_receiver<'a>(recv: &'a [u8]) -> Receiver<'a> {
 
 
 #[deriving(Hash, PartialEq, Eq)]
+/// A host mask in the form "*!*@*.*"
 pub struct HostMask {
     mask: String
 }
@@ -85,22 +86,29 @@ impl HostMask {
             mask: mask
         }
     }
-    fn matches(&self, hostname: &str) -> bool {
-        let mut name_chars = hostname.chars().peekable();
-        let mask = self.mask.as_slice();
-        for (c, next) in mask.chars().zip({let mut n = mask.chars(); n.next(); n}) {
+    /// checks if the host mask matches another mask
+    ///
+    /// "*!*@*.com" would match "a!b@example.com"
+    pub fn matches(&self, mask: &str) -> bool {
+        let mut mask_chars = mask.chars().peekable();
+        let mut chars = self.mask.as_slice().chars().peekable();
+        for c in chars {
             match c {
-                '*' => { while match name_chars.peek() {
-                    Some(&name_cha) => name_cha != next,
-                    None => false } { let _ = name_chars.next(); }
+                '*' => match chars.peek() {
+                    // Consume all chars until next match is found
+                    Some(next) => while match mask_chars.peek() {
+                        Some(mask_cha) => mask_cha != next,
+                        None => false } { let _ = mask_chars.next(); },
+                    // * at end of the string matches the whole rest
+                    None => return true
                 },
-                cha => match name_chars.next() {
+                cha => match mask_chars.next() {
                     None => return false,
-                    Some(name_cha) => if cha != name_cha { return false }
+                    Some(mask_cha) => if cha != mask_cha { return false }
                 }
             }
         }
-        true
+        !mask_chars.next().is_some()
     }
 }
 
@@ -129,6 +137,8 @@ mod tests {
 	fn test_masks() {
 		assert!(HostMask::new("*!*@*.com".to_string()).matches("a!b@example.com"))
 		assert!(!HostMask::new("*!*@*.com".to_string()).matches("*!*@*.edu"))
+		assert!(!HostMask::new("*!*@*.com".to_string()).matches("*!*@*.cop"))
+		assert!(!HostMask::new("*!*@*.com".to_string()).matches("*!*@*.coma"))
 		assert!(HostMask::new("*!*@example.com".to_string()).matches("a!b@example.com"))
 		assert!(HostMask::new("foo!*@*.com".to_string()).matches("foo!bar@example.com"))
 		assert!(!HostMask::new("foo!*@*.com".to_string()).matches("baz!bar@example.com"))
