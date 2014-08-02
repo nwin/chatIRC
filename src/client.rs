@@ -119,7 +119,8 @@ impl Client {
         spawn(proc() {
             // TODO: write a proper 510 char line iterator
             // as it is now it is probably very slow
-            for line in BufferedReader::new(receiving_stream).lines() {
+            for line in BufferedReader::with_capacity(2, receiving_stream).lines() {
+                debug!("received message {}", line);
                 let message = RawMessage::parse(line.unwrap().as_slice().trim_right().as_bytes()).unwrap();
                 debug!("received message {}", message.to_string());
                 tx.send(MessageReceived(id, message))

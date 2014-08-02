@@ -7,7 +7,7 @@ use super::util;
 macro_rules! parse_messages {
     {$(
         $name:ident for $command:ident as $enum_name:ident 
-        { $($attr:ident: $ty:ty),+ }
+        { $($attr:ident: $ty:ty),* }
         <- fn ($message:ident) $parser:block;
     )*} => {
 
@@ -62,6 +62,7 @@ ModeMessage for MODE as Mode { receiver: ::msg::Receiver, params: Vec<Vec<u8>> }
         ], None))
     }
 };
+
 PrivMessage for PRIVMSG as Priv { receiver: Vec<::msg::Receiver>, message: Vec<u8> } <- fn(message) {
     let params = message.params();
     if params.len() > 1 {
@@ -115,6 +116,46 @@ JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u
     }
     Ok(JoinMessage {
         raw: message.clone(), targets: targets, passwords: passwords
+    })
+};
+
+UserMessage for USER as User { username: String, realname: String } <- fn(message) { 
+    let params = message.params();
+    if params.len() >= 4 {
+        let username = String::from_utf8_lossy(params[0].as_slice()).to_string();
+        let realname = String::from_utf8_lossy(params[3].as_slice()).to_string();
+        Ok(UserMessage {
+            raw: message.clone(), username: username, realname: realname
+        })
+    } else {
+        Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            message.command().to_string().as_slice(),
+            "not enought params given"
+        ], None))
+    }
+};
+
+QuitMessage for QUIT as Quit { reason: Option<String> } <- fn(message) { 
+    let reason = message.params().as_slice().get(0).map(
+        |&v| String::from_utf8_lossy(v).to_string());
+    Ok(QuitMessage {
+        raw: message, reason: reason
+    })
+};
+
+PingMessage for PING as Ping { payload: Option<String> } <- fn(message) {
+    let payload = message.params().as_slice().get(0).map(
+        |&v| String::from_utf8_lossy(v).to_string());
+    Ok(PingMessage {
+        raw: message, payload: payload
+    })
+};
+
+PongMessage for PONG as Pong { payload: Option<String> } <- fn(message) { 
+    let payload = message.params().as_slice().get(0).map(
+        |&v| String::from_utf8_lossy(v).to_string());
+    Ok(PongMessage {
+        raw: message, payload: payload
     })
 };
 

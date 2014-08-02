@@ -277,33 +277,23 @@ impl IrcServer {
     
     /// Handles the USER command
     fn handle_user(&mut self, origin: SharedClient, message: RawMessage) {
-        let params = message.params();
-        if params.len() >= 4 {
-            let username = String::from_utf8_lossy(params[0].as_slice());
-            let realname = String::from_utf8_lossy(params[3].as_slice());
-            let nick = {
-                origin.borrow_mut().username = username.into_string();
-                origin.borrow_mut().realname = realname.into_string();
-                origin.borrow_mut().nickname.clone()
-            };
-            if self.nicknames.contains_key(&nick) {
-                origin.borrow_mut().send_response(ERR_ALREADYREGISTRED, None,
-                    Some("somebody already registered with the same nickname")
-                );
-            } else {
-                self.nicknames.insert(nick, origin.clone());
-                self.send_welcome_msg(origin);
-            }
+        let message = msg::UserMessage::from_raw_message(message).unwrap();
+        origin.borrow_mut().username = message.username;
+        origin.borrow_mut().realname = message.realname;
+        let nick = origin.borrow_mut().nickname.clone();
+        if self.nicknames.contains_key(&nick) {
+            origin.borrow_mut().send_response(ERR_ALREADYREGISTRED, None,
+                Some("somebody already registered with the same nickname")
+            );
         } else {
-            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                Some(message.command().to_string().as_slice()),
-                Some("not enought params given")
-            )
+            self.nicknames.insert(nick, origin.clone());
+            self.send_welcome_msg(origin);
         }
     }
     
     /// Handles the QUIT command
     fn handle_quit(&mut self, origin: SharedClient, _: RawMessage) {
+        // let message = msg::QuitMessage::from_raw_message(message).unwrap();
         // TODO communicate this to other users
         let mut client = origin.borrow_mut();
         client.close_connection();

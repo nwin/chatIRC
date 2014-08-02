@@ -333,14 +333,19 @@ impl Channel {
         }
     }
     
-    fn broadcast_mode(&self, member: &Member) {
+    #[inline]
+    fn broadcast(&self, message: RawMessage) {
+        for (_, member) in self.members.iter() {
+            member.send_msg(message.clone())
+        }
+    }
+    
+    fn broadcast_channel_mode(&self, member: &Member) {
         let msg = RawMessage::new(cmd::MODE, [
             self.name.as_slice(),
             member.flags().as_slice(), 
             member.nick()], Some(self.server_name.as_slice()));
-        for (_, member) in self.members.iter() {
-            member.send_msg(msg.clone())
-        }
+        self.broadcast(msg)
     }
     
     /// Sends the list of users to the client
@@ -378,8 +383,6 @@ impl Channel {
             //member already in channel
             return
         }
-        member.send_response(cmd::RPL_NOTOPIC, 
-            [self.name.as_slice(), "No topic set."]);
         let msg = RawMessage::new(
             cmd::JOIN, 
             &[self.name.as_slice()],
@@ -392,13 +395,13 @@ impl Channel {
         let id = member.id().clone();
         self.nicknames.insert(member.id(), member.nick().to_string());
         self.members.insert(member.nick().to_string(), member);
-        for (_, member) in self.members.iter() {
-            member.send_msg(msg.clone())
-        }
+        self.broadcast(msg);
         let member = self.member_with_id(id).unwrap();
+        member.send_response(cmd::RPL_NOTOPIC, 
+            [self.name.as_slice(), "No topic set."]);
         self.handle_names(id, member.proxy());
         if self.members.len() == 1 { // first user
-            self.broadcast_mode(member)
+            self.broadcast_channel_mode(member)
         }
     }
     
@@ -423,6 +426,7 @@ impl Channel {
     
     /// Handles the channel mode message
     pub fn handle_mode(&mut self, client_id: ClientId, message: RawMessage) {
+        // TODO broadcast changes
         let is_op = { match self.member_with_id(client_id) {
             Some(member) => member.is_op(),
             None => false
@@ -531,9 +535,7 @@ impl Channel {
                         member.send_msg(message.clone())
                     }
                 },
-                None => for (_, member) in self.members.iter() {
-                    member.send_msg(message.clone())
-                }
+                None => self.broadcast(message)
             }
         }
     }
