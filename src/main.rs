@@ -14,11 +14,12 @@ extern crate libc;
 use server::{run_server};
 
 // pub only for documentation purposes
-pub mod message;
 pub mod client;
 pub mod server;
 #[allow(dead_code)]
 pub mod channel;
+#[allow(dead_code)]
+pub mod msg;
 pub mod cmd;
 pub mod util;
 

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use client::{ClientId, ClientProxy};
-use message::{RawMessage};
+use msg::{RawMessage};
 use util::{HostMask};
 
 use cmd;

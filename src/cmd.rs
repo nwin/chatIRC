@@ -52,21 +52,6 @@ commands!{
     USER        #[doc = "`USER` command"];
 }
 
-macro_rules! messages {
-    {$(
-        $keyword:ident as
-        $name:ident
-        { $($attr:ident: $ty:ty),+ }
-        <- $parser:expr;
-    )*} => {
-    }
-}
-
-messages!{
-    JOIN as Join { targets: Vec<String>, passwords: Vec<Vec<u8>> } <- {
-        PRIVMSG
-    };
-}
 
 #[allow(non_camel_case_types)] 
 #[deriving(Show)]

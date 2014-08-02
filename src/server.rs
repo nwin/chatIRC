@@ -6,7 +6,7 @@ use std::io::net;
 use std::io;
 use std::collections::hashmap::{HashMap};
 
-use message::{RawMessage};
+use msg::{RawMessage};
 use channel::{Member, Channel, ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};

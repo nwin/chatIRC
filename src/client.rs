@@ -7,7 +7,7 @@ use std::cell::{RefCell};
 use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
-use message::{RawMessage};
+use msg::{RawMessage};
 use cmd::{Command, REPLY, ResponseCode};
 
 use server::{Event, ClientConnected, MessageReceived};
