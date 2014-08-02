@@ -2,7 +2,6 @@
 macro_rules! commands {
     {$(
         $ident:ident
-        $bytes:expr
         #[$doc:meta];
     )*} => {
         /// Enumeration of all supported IRC commands (mainly RFC1459)
@@ -19,7 +18,7 @@ macro_rules! commands {
             /// Converts bytestring to Command 
             pub fn from_bytes(bytes: &'a [u8]) -> Command<'a> {
                 // TODO add REPLY(...)
-                $(if bytes == $bytes { $ident } else)* {
+                $(if bytes == stringify!($ident).as_bytes() { $ident } else)* {
                     UNKNOWN(bytes)
                 }
             }
@@ -27,7 +26,7 @@ macro_rules! commands {
             /// Converts the command into bytes 
             pub fn to_bytes(&'a self) -> Vec<u8> {
                 match *self {
-                    $($ident => Vec::from_slice($bytes),)*
+                    $($ident => Vec::from_slice(stringify!($ident).as_bytes()),)*
                     REPLY(reply) => format!("{:03u}", reply as u16).into_bytes(),
                     UNKNOWN(bytes) => Vec::from_slice(bytes)
                 }
@@ -42,15 +41,31 @@ macro_rules! commands {
 }
 
 commands!{
-    PRIVMSG     b"PRIVMSG"  #[doc = "`PRIVMSG` command"];
-    MODE        b"MODE"     #[doc = "`MODE` command"];
-    JOIN        b"JOIN"     #[doc = "`JOIN` command, see http://tools.ietf.org/html/rfc1459.html#section-4.2.1"];
-    PING        b"PING"     #[doc = "`PING` command"];
-    NAMES       b"NAMES"    #[doc = "`NAMES` command"];
-    QUIT        b"QUIT"     #[doc = "`QUIT` command"];
-    PONG        b"PONG"     #[doc = "`PONG` command"];
-    NICK        b"NICK"     #[doc = "`NICK` command"];
-    USER        b"USER"     #[doc = "`USER` command"];
+    PRIVMSG     #[doc = "`PRIVMSG` command"];
+    MODE        #[doc = "`MODE` command"];
+    JOIN        #[doc = "`JOIN` command, see http://tools.ietf.org/html/rfc1459.html#section-4.2.1"];
+    PING        #[doc = "`PING` command"];
+    NAMES       #[doc = "`NAMES` command"];
+    QUIT        #[doc = "`QUIT` command"];
+    PONG        #[doc = "`PONG` command"];
+    NICK        #[doc = "`NICK` command"];
+    USER        #[doc = "`USER` command"];
+}
+
+macro_rules! messages {
+    {$(
+        $keyword:ident as
+        $name:ident
+        { $($attr:ident: $ty:ty),+ }
+        <- $parser:expr;
+    )*} => {
+    }
+}
+
+messages!{
+    JOIN as Join { targets: Vec<String>, passwords: Vec<Vec<u8>> } <- {
+        PRIVMSG
+    };
 }
 
 #[allow(non_camel_case_types)] 
