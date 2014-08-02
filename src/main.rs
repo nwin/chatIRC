@@ -1,4 +1,4 @@
-#![crate_name = "rircd"]
+#![crate_name = "chätd"]
 #![experimental]
 #![comment = "IRC daemon written in pure rust, doomed to be fast"]
 #![license = "MIT/ASL2"]
