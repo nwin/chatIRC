@@ -21,7 +21,6 @@ pub mod channel;
 #[allow(dead_code)]
 pub mod msg;
 pub mod cmd;
-pub mod util;
 
 fn main() {
     match run_server("localhost") {

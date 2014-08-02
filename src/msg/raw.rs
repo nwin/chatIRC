@@ -1,5 +1,5 @@
 use cmd::*;
-use util;
+use super::util;
 
 #[deriving(Show, Clone)]
 // Helper struct to efficently adress the different parts

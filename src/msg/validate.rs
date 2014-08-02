@@ -1,8 +1,8 @@
-use util;
 use cmd::{REPLY};
 use cmd;
 
 use super::{RawMessage};
+use super::util;
 
 macro_rules! parse_messages {
     {$(
@@ -16,7 +16,7 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn from_raw_message(message: RawMessage) -> Result<Message, message::RawMessage> {
+    pub fn from_raw_message(message: RawMessage) -> Result<Message, RawMessage> {
         match message.command() {
             $(cmd::$command => Ok($enum_name(try!($name::from_raw_message(message)))),)*
             _ => fail!("Not all commands handled yet")
@@ -30,7 +30,7 @@ pub struct $name {
     $($attr: $ty,)*
 }
 impl $name {
-    pub fn from_raw_message($message: message::RawMessage) -> Result<$name, message::RawMessage> 
+    pub fn from_raw_message($message: RawMessage) -> Result<$name, RawMessage> 
         $parser
 }
 )*
@@ -38,6 +38,23 @@ impl $name {
 }}
 
 parse_messages!{
+PrivMsg for PRIVMSG as Priv { receiver: Vec<::msg::Receiver>, message: Vec<u8> } <- fn(message) {
+    let params = message.params();
+    if params.len() > 1 {
+        Ok(PrivMsg {
+            receiver: params[0].as_slice()
+                               .split(|&v| v == b',' )
+                               .map(|v| util::verify_receiver(v))
+                               .collect(),
+            message: params[1].to_owned()
+        })
+    } else {
+         return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            message.command().to_string().as_slice(),
+            "not enought params given"
+        ], None))
+    }
+};
 
 JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u8>>> } <- fn(message) { 
     let params = message.params();
@@ -59,14 +76,14 @@ JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u
                         passwords.push(None);
                     }
                 },
-                None => return Err(message::RawMessage::new(REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                None => return Err(RawMessage::new(REPLY(cmd::ERR_NOSUCHCHANNEL), [
                     String::from_utf8_lossy(channel_name).as_slice(),
                     "Invalid channel name."
                 ], None))
             }
         }
     } else {
-         return Err(message::RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+         return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
             message.command().to_string().as_slice(),
             "no params given"
         ], None))

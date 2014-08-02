@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use client::{ClientId, ClientProxy};
 use msg::{RawMessage};
-use util::{HostMask};
+use msg::util::{HostMask};
 
 use cmd;
 

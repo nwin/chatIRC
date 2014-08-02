@@ -10,8 +10,8 @@ use msg::{RawMessage};
 use channel::{Member, Channel, ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};
-use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
-use util;
+use msg::util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
+use msg::util;
 
 use cmd::*;
 
@@ -270,7 +270,7 @@ impl IrcServer {
                         } 
                         None => origin
                             .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                                Some(*name), Some("No such channel"))
+                                Some(name.as_slice()), Some("No such channel"))
                     }
                 },
                 _ => {}
@@ -332,7 +332,7 @@ impl IrcServer {
                         )),
                         None => origin
                             .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                                Some(*name), Some("No such channel"))
+                                Some(name.as_slice()), Some("No such channel"))
                             
                             
                     }
