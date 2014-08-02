@@ -6,12 +6,12 @@ use std::io::net;
 use std::io;
 use std::collections::hashmap::{HashMap};
 
-use msg::{RawMessage};
 use channel::{Member, Channel, ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};
-use msg::util::{ChannelName, NickName, verify_nick};
+use msg::util::{ChannelName, NickName};
 use msg::util;
+use msg::{Message};
 use msg;
 
 use cmd::*;
@@ -58,7 +58,7 @@ pub struct IrcServer {
 /// Enumeration of the events the server can receive
 pub enum Event {
     /// Message received from a client
-    MessageReceived(ClientId, RawMessage),
+    MessageReceived(ClientId, Message),
     /// Connection to a client established
     ClientConnected(Client),
     /// The task of Channel(name) failed
@@ -110,9 +110,8 @@ impl IrcServer {
                     match client {
                         Some(client) => self.dispatch(client, message),
                         None => error!(
-                            "Client {} not found when sending message {}.",
-                            client_id,
-                            message.command()
+                            "Client {} not found when sending message.",
+                            client_id
                         )
                     }
                 },
@@ -154,32 +153,31 @@ impl IrcServer {
         });
         Ok(rx)
     }
-    
     /// Main message dispatcher
     ///
     /// This method processes all messages comming from any client. Be carefull
     /// to keep the processing time of each message as short as possible to
     /// archive bester server performance. Should spawn new threads if the processing
     /// take more time.
-    fn dispatch(&mut self, origin: SharedClient, message: RawMessage) {
+    fn dispatch(&mut self, origin: SharedClient, message: Message) {
         // TODO: wrap this in a proc?
-        match message.command() {
-            PRIVMSG => self.handle_privmsg(origin, message),
-            MODE => self.handle_mode(origin, message),
+        match message {
+            msg::Priv(msg) => self.handle_privmsg(origin, msg),
+            msg::Mode(msg) => self.handle_mode(origin, msg),
             // ignoring PONG, this is basically handled
             // by the socket timeout
-            PONG => {},
-            JOIN => self.handle_join(origin, message),
-            NAMES => self.handle_names(origin, message),
-            NICK => self.handle_nick(origin, message),
-            USER => self.handle_user(origin, message),
-            PING => {}, // ignoring this message, I am a server
-            QUIT => self.handle_quit(origin, message),
-            REPLY(_) => {}, // should not come from a client, ignore
-            UNKNOWN(_) => 
+            msg::Pong(_) => {},
+            msg::Join(msg) => self.handle_join(origin, msg),
+            msg::Names(msg) => self.handle_names(origin, msg),
+            msg::Nick(msg) => self.handle_nick(origin, msg),
+            msg::User(msg) => self.handle_user(origin, msg),
+            msg::Ping(_) => {}, // ignoring this message, I am a server
+            msg::Quit(msg) => self.handle_quit(origin, msg),
+            msg::Reply(_) => {}, // should not come from a client, ignore
+            msg::Unknown(cmd) => 
                 error!(
                     "Handling of message {} not implemented yet.",
-                    message.command().to_string())
+                    String::from_utf8_lossy(cmd.as_slice()))
         }
     }
     
@@ -188,8 +186,7 @@ impl IrcServer {
         client.borrow_mut().send_response(RPL_WELCOME, None, None)
     }
 
-    fn handle_privmsg(&mut self, origin: SharedClient, message: RawMessage) {
-        let mut message = msg::PrivMessage::from_raw_message(message).unwrap();
+    fn handle_privmsg(&mut self, origin: SharedClient, mut message: msg::PrivMessage) {
         message.raw.set_prefix(origin.borrow().nickname.as_slice());
         for receiver in message.receiver.move_iter() {
             match receiver {
@@ -216,8 +213,7 @@ impl IrcServer {
     /// Handles the nick command
     ///    Command: NICK
     /// Parameters: <nickname> [ <hopcount> ]
-    fn handle_nick(&self, origin: SharedClient, message: RawMessage) {
-        let message = msg::NickMessage::from_raw_message(message).unwrap();
+    fn handle_nick(&self, origin: SharedClient, message: msg::NickMessage) {
         let mut client = origin.borrow_mut();
         if self.nicknames.contains_key(&message.nick) {
             client.send_response(
@@ -231,8 +227,7 @@ impl IrcServer {
     }
     
     /// Handles the NAMES command
-    fn handle_names(&mut self, origin: SharedClient, message: RawMessage) {
-        let message = msg::NamesMessage::from_raw_message(message).unwrap();
+    fn handle_names(&mut self, origin: SharedClient, message: msg::NamesMessage) {
         for &recv in message.receivers.iter() {
             match recv {
                 ChannelName(ref name) => {
@@ -256,8 +251,7 @@ impl IrcServer {
     }
     
     /// Handles the USER command
-    fn handle_user(&mut self, origin: SharedClient, message: RawMessage) {
-        let message = msg::UserMessage::from_raw_message(message).unwrap();
+    fn handle_user(&mut self, origin: SharedClient, message: msg::UserMessage) {
         origin.borrow_mut().username = message.username;
         origin.borrow_mut().realname = message.realname;
         let nick = origin.borrow_mut().nickname.clone();
@@ -272,8 +266,7 @@ impl IrcServer {
     }
     
     /// Handles the QUIT command
-    fn handle_quit(&mut self, origin: SharedClient, _: RawMessage) {
-        // let message = msg::QuitMessage::from_raw_message(message).unwrap();
+    fn handle_quit(&mut self, origin: SharedClient, _: msg::QuitMessage) {
         // TODO communicate this to other users
         let mut client = origin.borrow_mut();
         client.close_connection();
@@ -282,8 +275,7 @@ impl IrcServer {
     }
     
     /// Handles the MODE command
-    fn handle_mode(&mut self, origin: SharedClient, message: RawMessage) {
-        let message = msg::ModeMessage::from_raw_message(message).unwrap();
+    fn handle_mode(&mut self, origin: SharedClient, message: msg::ModeMessage) {
         match message.receiver {
             ChannelName(ref name) => {
                 match self.channels.find_mut(&name.to_string()) {
@@ -306,8 +298,7 @@ impl IrcServer {
     /// Handles the JOIN command
     ///    Command: JOIN
     /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
-    fn handle_join(&mut self, origin: SharedClient, message: RawMessage) {
-        let message = msg::JoinMessage::from_raw_message(message).unwrap();
+    fn handle_join(&mut self, origin: SharedClient, message: msg::JoinMessage) {
         let host = self.host.clone();
         for (channel, password) in message.targets.move_iter()
         .zip(message.passwords.move_iter()) {

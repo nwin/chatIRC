@@ -13,6 +13,9 @@ pub use self::validate::{User, UserMessage};
 pub use self::validate::{Nick, NickMessage};
 pub use self::validate::{Names, NamesMessage};
 
+pub use self::validate::{Reply};
+pub use self::validate::{Unknown};
+
 
 pub mod validate;
 pub mod raw;

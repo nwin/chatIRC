@@ -7,7 +7,7 @@ use std::cell::{RefCell};
 use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
-use msg::{RawMessage};
+use msg::{RawMessage, Message};
 use cmd::{Command, REPLY, ResponseCode};
 
 use server::{Event, ClientConnected, MessageReceived};
@@ -99,6 +99,7 @@ impl Client {
     pub fn listen(host: String, mut stream: TcpStream, 
                          tx: Sender<Event>) -> IoResult<()> {
         let (msg_tx, rx) = channel();
+        let err_tx = msg_tx.clone();
         let peer_name = stream.peer_name().unwrap();
         let this = Client {
             id: ClientId::new(&mut stream),
@@ -120,10 +121,17 @@ impl Client {
             // TODO: write a proper 510 char line iterator
             // as it is now it is probably very slow
             for line in BufferedReader::with_capacity(2, receiving_stream).lines() {
-                debug!("received message {}", line);
-                let message = RawMessage::parse(line.unwrap().as_slice().trim_right().as_bytes()).unwrap();
-                debug!("received message {}", message.to_string());
-                tx.send(MessageReceived(id, message))
+                match RawMessage::parse(line.unwrap().as_slice()
+                .trim_right().as_bytes()) {
+                    Ok(raw) => {
+                        debug!("received message {}", raw.to_string());
+                        match Message::from_raw_message(raw) {
+                            Ok(message) => tx.send(MessageReceived(id, message)),
+                            Err(err_msg) => err_tx.send(err_msg)
+                        }
+                    },
+                    Err(_) => {}
+                }
             }
         });
         spawn(proc() {
