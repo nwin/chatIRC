@@ -138,6 +138,11 @@ impl Client {
         Ok(())
     }
     
+    /// Returns the mask
+    pub fn real_mask(&self) -> String {
+        format!("{}!{}@{}", self.nickname, self.username, self.hostname)
+    }
+    
     /// Converts the Client to a shared client
     pub fn as_shared(self) -> SharedClient {
         Rc::new(RefCell::new(self))

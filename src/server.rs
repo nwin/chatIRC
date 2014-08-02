@@ -11,6 +11,7 @@ use channel::{Member, Channel, ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};
 use util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
+use util;
 
 use cmd::*;
 
@@ -374,9 +375,10 @@ impl IrcServer {
                                 Member::new(
                                     origin.borrow().id(),
                                     origin.borrow().nickname.clone(),
+                                    util::HostMask::new(origin.borrow().real_mask()),
                                     self.host.clone(),
                                     origin.borrow().proxy()
-                                ), 
+                                ),
                                 passwords.as_slice().get(i).map(|v| v.to_vec())
                             )
                         )

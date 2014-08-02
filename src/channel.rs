@@ -121,6 +121,7 @@ pub struct Member {
     id: ClientId,
     proxy: ClientProxy,
     nick: String,
+    mask: HostMask,
     decorated_nick: String,
     flags: Flags,
     server_name: String,
@@ -132,11 +133,12 @@ pub struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: ClientId, nick: String, server_name: String, proxy: ClientProxy) -> Member {
+    pub fn new(id: ClientId, nick: String, mask: HostMask, server_name: String, proxy: ClientProxy) -> Member {
         Member {
             id: id,
             proxy: proxy,
             nick: nick.clone(),
+            mask: mask,
             decorated_nick: nick,
             flags: HashSet::new(),
             server_name: server_name
