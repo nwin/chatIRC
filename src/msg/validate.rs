@@ -1,4 +1,4 @@
-use cmd::{REPLY};
+use cmd::{REPLY, UNKNOWN, ResponseCode};
 use cmd;
 
 use super::{RawMessage};
@@ -13,13 +13,19 @@ macro_rules! parse_messages {
 
 pub enum Message {
     $($enum_name($name),)*
+    /// Numeric reply codes, see `cmd::ResponseCode`
+    Reply(ResponseCode),
+    /// Catch all unknown/unsupported commands
+    Unknown(Vec<u8>),
 }
 
 impl Message {
     pub fn from_raw_message(message: RawMessage) -> Result<Message, RawMessage> {
+        let cmd = message.command().to_bytes(); // temporary workaround the borrow checker
         match message.command() {
             $(cmd::$command => Ok($enum_name(try!($name::from_raw_message(message)))),)*
-            _ => fail!("Not all commands handled yet")
+            REPLY(code) => Ok(Reply(code)),
+            UNKNOWN(_) => Ok(Unknown(cmd))
         }
     }
 }
@@ -119,13 +125,13 @@ JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u
     })
 };
 
-UserMessage for USER as User { username: String, realname: String } <- fn(message) { 
-    let params = message.params();
-    if params.len() >= 4 {
-        let username = String::from_utf8_lossy(params[0].as_slice()).to_string();
-        let realname = String::from_utf8_lossy(params[3].as_slice()).to_string();
-        Ok(UserMessage {
-            raw: message.clone(), username: username, realname: realname
+NamesMessage for NAMES as Names { receivers: Vec<util::Receiver> } <- fn(message) { 
+    if message.params().len() > 0 {
+        Ok(NamesMessage {
+            raw: message.clone(),
+            receivers: message.params()[0].as_slice().split(|c| *c == b',').map(|v|
+                util::verify_receiver(v)
+            ).collect()
         })
     } else {
         Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
@@ -157,6 +163,44 @@ PongMessage for PONG as Pong { payload: Option<String> } <- fn(message) {
     Ok(PongMessage {
         raw: message, payload: payload
     })
+};
+
+
+NickMessage for NICK as Nick { nick: String } <- fn(message) { 
+    let params = message.params();
+    if params.len() > 0 {
+        match util::verify_nick(params[0].as_slice()) {
+            Some(nick) => Ok(NickMessage {
+                raw: message.clone(),
+                nick: nick.to_string()
+            }),
+            None => 
+                Err(RawMessage::new(REPLY(cmd::ERR_ERRONEUSNICKNAME), [
+                    String::from_utf8_lossy(params[0].as_slice()).as_slice(),
+                    "invalid nick name"
+                ], None))
+        }
+    } else {
+        Err(RawMessage::new(REPLY(cmd::ERR_NONICKNAMEGIVEN), [
+            "no nickname given"
+        ], None))
+    }
+};
+
+UserMessage for USER as User { username: String, realname: String } <- fn(message) { 
+    let params = message.params();
+    if params.len() >= 4 {
+        let username = String::from_utf8_lossy(params[0].as_slice()).to_string();
+        let realname = String::from_utf8_lossy(params[3].as_slice()).to_string();
+        Ok(UserMessage {
+            raw: message.clone(), username: username, realname: realname
+        })
+    } else {
+        Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            message.command().to_string().as_slice(),
+            "not enought params given"
+        ], None))
+    }
 };
 
 }

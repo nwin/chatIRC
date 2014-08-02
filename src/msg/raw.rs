@@ -1,5 +1,4 @@
 use cmd::*;
-use super::util;
 
 #[deriving(Show, Clone)]
 // Helper struct to efficently adress the different parts
@@ -118,17 +117,6 @@ impl RawMessage {
             command: command,
             params: params
         })
-    }
-    
-    pub fn receivers_do_or_else(&self, then: |util::Receiver|, else_: ||) {
-        let params = self.params();
-        if params.len() > 0 {
-            for recv in params[0].as_slice().split(|c| *c == b',') {
-                then(util::verify_receiver(recv))
-            }
-        } else {
-            else_()
-        }
     }
     
     /// Returns the message prefix

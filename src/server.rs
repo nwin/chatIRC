@@ -10,7 +10,7 @@ use msg::{RawMessage};
 use channel::{Member, Channel, ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};
-use msg::util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
+use msg::util::{ChannelName, NickName, verify_nick};
 use msg::util;
 use msg;
 
@@ -217,40 +217,23 @@ impl IrcServer {
     ///    Command: NICK
     /// Parameters: <nickname> [ <hopcount> ]
     fn handle_nick(&self, origin: SharedClient, message: RawMessage) {
+        let message = msg::NickMessage::from_raw_message(message).unwrap();
         let mut client = origin.borrow_mut();
-        let params = message.params();
-        if params.len() > 0 {
-            match verify_nick(params[0].as_slice()) {
-                Some(nick) => {
-                    let nick = nick.to_string();
-                    if self.nicknames.contains_key(&nick) {
-                        client.send_response(
-                            ERR_NICKNAMEINUSE,
-                            Some(nick.as_slice()), 
-                            Some("nickname in use")
-                        );
-                    } else {
-                        client.nickname = nick;
-                    }
-                },
-                None => {
-                    client.send_response(
-                        ERR_ERRONEUSNICKNAME,
-                        Some(String::from_utf8_lossy(params[0].as_slice()).as_slice()),
-                        Some("invalid nick name")
-                    );
-                }
-            }
+        if self.nicknames.contains_key(&message.nick) {
+            client.send_response(
+                ERR_NICKNAMEINUSE,
+                Some(message.nick.as_slice()), 
+                Some("nickname in use")
+            );
         } else {
-            client.send_response(ERR_NONICKNAMEGIVEN, None,
-                Some("no nickname given")
-            )
+            client.nickname = message.nick;
         }
     }
     
     /// Handles the NAMES command
     fn handle_names(&mut self, origin: SharedClient, message: RawMessage) {
-        message.receivers_do_or_else( | recv | {
+        let message = msg::NamesMessage::from_raw_message(message).unwrap();
+        for &recv in message.receivers.iter() {
             match recv {
                 ChannelName(ref name) => {
                     match self.channels.find_mut(&name.to_string()) {
@@ -268,11 +251,8 @@ impl IrcServer {
                 },
                 _ => {}
             }
-        }, || origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-            Some(message.command().to_string().as_slice()),
-            Some("not enought params given")
-        )
-        )
+            
+        }
     }
     
     /// Handles the USER command
