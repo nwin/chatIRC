@@ -12,6 +12,7 @@ use channel;
 use client::{SharedClient, Client, ClientId};
 use msg::util::{ChannelName, NickName, verify_nick, verify_channel, verify_receiver};
 use msg::util;
+use msg;
 
 use cmd::*;
 
@@ -187,36 +188,28 @@ impl IrcServer {
         client.borrow_mut().send_response(RPL_WELCOME, None, None)
     }
 
-    fn handle_privmsg(&mut self, origin: SharedClient, mut message: RawMessage) {
-        message.set_prefix(origin.borrow().nickname.as_slice());
-        let params = message.params();
-        if params.len() > 1 {
-            for receiver in params[0].as_slice().split(|&v| v == b',' )
-                                     .map(|v| verify_receiver(v)) {
-                match receiver {
-                    ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => 
-                            channel.send(channel::Message(
-                                channel::PRIVMSG,
-                                origin.borrow().id(),
-                                message.clone(),
-                            )),
-                        None => {}
+    fn handle_privmsg(&mut self, origin: SharedClient, message: RawMessage) {
+        let mut message = msg::PrivMessage::from_raw_message(message).unwrap();
+        message.raw.set_prefix(origin.borrow().nickname.as_slice());
+        for receiver in message.receiver.move_iter() {
+            match receiver {
+                ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
+                    Some(channel) => 
+                        channel.send(channel::Message(
+                            channel::PRIVMSG,
+                            origin.borrow().id(),
+                            message.raw.clone(),
+                        )),
+                    None => {}
+                },
+                NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
+                    Some(client) => {
+                        client.borrow_mut().send_msg(message.raw.clone());
                     },
-                    NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
-                        Some(client) => {
-                            client.borrow_mut().send_msg(message.clone());
-                        },
-                        None => {}
-                    },
-                    _ => {}
-                }
+                    None => {}
+                },
+                _ => {}
             }
-        } else {
-            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                Some(message.command().to_string().as_slice()),
-                Some("not enought params given")
-            )
         }
     }
     
@@ -320,30 +313,23 @@ impl IrcServer {
     
     /// Handles the MODE command
     fn handle_mode(&mut self, origin: SharedClient, message: RawMessage) {
-        let params = message.params();
-        if params.len() > 0 {
-            match verify_receiver(params[0]) {
-                ChannelName(ref name) => {
-                    match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => channel.send(channel::Message(
-                                channel::MODE,
-                                origin.borrow().id(), 
-                                message.clone()
-                        )),
-                        None => origin
-                            .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                                Some(name.as_slice()), Some("No such channel"))
-                            
-                            
-                    }
-                },
-                _ => error!("user modes not supported yet")
-            }
-        } else {
-            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                Some(message.command().to_string().as_slice()),
-                Some("no receiver given")
-            )
+        let message = msg::ModeMessage::from_raw_message(message).unwrap();
+        match message.receiver {
+            ChannelName(ref name) => {
+                match self.channels.find_mut(&name.to_string()) {
+                    Some(channel) => channel.send(channel::Message(
+                            channel::MODE,
+                            origin.borrow().id(), 
+                            message.raw
+                    )),
+                    None => origin
+                        .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
+                            Some(name.as_slice()), Some("No such channel"))
+                        
+                        
+                }
+            },
+            _ => error!("user modes not supported yet")
         }
     }
     
@@ -351,48 +337,29 @@ impl IrcServer {
     ///    Command: JOIN
     /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
     fn handle_join(&mut self, origin: SharedClient, message: RawMessage) {
-        let params = message.params();
+        let message = msg::JoinMessage::from_raw_message(message).unwrap();
         let host = self.host.clone();
-        if params.len() > 0 {
-            let passwords: Vec<&[u8]> = if params.len() > 1 {
-                params[1].as_slice().split(|c| *c == b',').collect()
-            } else {
-                Vec::new()
-            };
-            for (i, channel_name) in params[0].as_slice().split(|c| *c == b',').enumerate() {
-                match verify_channel(channel_name) {
-                    Some(channel) => {
-                        let tx = self.tx.clone().unwrap();
-                        self.channels.find_or_insert_with(channel.to_string(), |key| {
-                            ChannelProxy::new(
-                                key.clone(),
-                                Channel::new(key.clone(), host.clone()).listen(),
-                                // this should exist by now
-                                tx.clone()
-                            )
-                        }).send(
-                            channel::Join(
-                                Member::new(
-                                    origin.borrow().id(),
-                                    origin.borrow().nickname.clone(),
-                                    util::HostMask::new(origin.borrow().real_mask()),
-                                    self.host.clone(),
-                                    origin.borrow().proxy()
-                                ),
-                                passwords.as_slice().get(i).map(|v| v.to_vec())
-                            )
-                        )
-                    },
-                    None => origin.borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                        Some(String::from_utf8_lossy(channel_name.as_slice()).as_slice()),
-                        Some("Invalid channel name.")
-                    )
-                }
-            }
-        } else {
-            origin.borrow_mut().send_response(ERR_NEEDMOREPARAMS,
-                Some(message.command().to_string().as_slice()),
-                Some("no params given")
+        for (channel, password) in message.targets.move_iter()
+        .zip(message.passwords.move_iter()) {
+            let tx = self.tx.clone().unwrap();
+            self.channels.find_or_insert_with(channel.to_string(), |key| {
+                ChannelProxy::new(
+                    key.clone(),
+                    Channel::new(key.clone(), host.clone()).listen(),
+                    // this should exist by now
+                    tx.clone()
+                )
+            }).send(
+                channel::Join(
+                    Member::new(
+                        origin.borrow().id(),
+                        origin.borrow().nickname.clone(),
+                        util::HostMask::new(origin.borrow().real_mask()),
+                        self.host.clone(),
+                        origin.borrow().proxy()
+                    ),
+                    password
+                )
             )
         }
     }

@@ -27,7 +27,8 @@ impl Message {
 $(
 
 pub struct $name {
-    $($attr: $ty,)*
+    pub raw: RawMessage,
+    $(pub $attr: $ty,)*
 }
 impl $name {
     pub fn from_raw_message($message: RawMessage) -> Result<$name, RawMessage> 
@@ -38,10 +39,34 @@ impl $name {
 }}
 
 parse_messages!{
-PrivMsg for PRIVMSG as Priv { receiver: Vec<::msg::Receiver>, message: Vec<u8> } <- fn(message) {
+ModeMessage for MODE as Mode { receiver: ::msg::Receiver, params: Vec<Vec<u8>> } <- fn(message) {
+    let params = message.params();
+    if params.len() > 0 {
+        match util::verify_receiver(params[0]) {
+            util::InvalidReceiver(name) => return Err(RawMessage::new(REPLY(cmd::ERR_USERNOTINCHANNEL), [
+                message.command().to_string().as_slice(),
+                format!("invalid channel name {}", name).as_slice()
+                ], None)
+            ),
+            receiver => Ok(ModeMessage{
+                raw: message.clone(),
+                receiver: receiver,
+                params: message.params().slice_from(1)
+                               .iter().map(|v| v.to_vec()).collect()
+            })
+        }
+    } else {
+         return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            message.command().to_string().as_slice(),
+            "receiver given"
+        ], None))
+    }
+};
+PrivMessage for PRIVMSG as Priv { receiver: Vec<::msg::Receiver>, message: Vec<u8> } <- fn(message) {
     let params = message.params();
     if params.len() > 1 {
-        Ok(PrivMsg {
+        Ok(PrivMessage {
+            raw: message.clone(), 
             receiver: params[0].as_slice()
                                .split(|&v| v == b',' )
                                .map(|v| util::verify_receiver(v))
@@ -89,7 +114,7 @@ JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u
         ], None))
     }
     Ok(JoinMessage {
-        targets: targets, passwords: passwords
+        raw: message.clone(), targets: targets, passwords: passwords
     })
 };
 
