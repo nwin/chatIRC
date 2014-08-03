@@ -169,6 +169,7 @@ impl IrcServer {
             msg::Pong(_) => {},
             msg::Join(msg) => self.handle_join(origin, msg),
             msg::Part(msg) => self.handle_part(origin, msg),
+            msg::Who(msg) => self.handle_who(origin, msg),
             msg::Names(msg) => self.handle_names(origin, msg),
             msg::Nick(msg) => self.handle_nick(origin, msg),
             msg::User(msg) => self.handle_user(origin, msg),
@@ -250,6 +251,17 @@ impl IrcServer {
         }
     }
     
+    /// Handles the NAMES command
+    fn handle_who(&mut self, origin: SharedClient, message: msg::WhoMessage) {
+        match self.channels.find(&message.mask) {
+            Some(channel) => channel.send(channel::Who(
+                origin.borrow().proxy(),
+                message,
+            )),
+            None => {} // handle later
+        }
+    }
+    
     /// Handles the USER command
     fn handle_user(&mut self, origin: SharedClient, message: msg::UserMessage) {
         origin.borrow_mut().username = message.username;
@@ -318,7 +330,7 @@ impl IrcServer {
                 channel::Join(
                     Member::new(
                         origin.borrow().id(),
-                        origin.borrow().nickname.clone(),
+                        origin.borrow().realname.clone(),
                         util::HostMask::new(origin.borrow().real_mask()),
                         self.host.clone(),
                         origin.borrow().proxy()

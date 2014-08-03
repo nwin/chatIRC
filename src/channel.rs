@@ -86,6 +86,7 @@ impl ChannelMode {
 fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
     let mut current = slice;
     loop {
+        // Bug: no +/- asking for modes
         let set = match current[0][0] {
             b'+' => true,
             b'-' => false,
@@ -123,6 +124,9 @@ pub struct Member {
     proxy: ClientProxy,
     nick: String,
     mask: HostMask,
+    hostname: String,
+    username: String,
+    realname: String,
     decorated_nick: String,
     flags: Flags,
     server_name: String,
@@ -134,13 +138,16 @@ pub struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: ClientId, nick: String, mask: HostMask, server_name: String, proxy: ClientProxy) -> Member {
+    pub fn new(id: ClientId, realname: String, mask: HostMask, server_name: String, proxy: ClientProxy) -> Member {
         Member {
             id: id,
             proxy: proxy,
-            nick: nick.clone(),
-            mask: mask,
-            decorated_nick: nick,
+            nick: mask.nick().unwrap().to_string(),
+            hostname: mask.host().unwrap().to_string(),
+            username: mask.user().unwrap().to_string(),
+            realname: realname,
+            mask: mask.clone(),
+            decorated_nick: mask.nick().unwrap().to_string(),
             flags: HashSet::new(),
             server_name: server_name
         }
@@ -172,10 +179,15 @@ impl Member {
         self.flags.contains(&privilege)
     }
     
-    /// Get flags as string
-    pub fn flags(&self) -> String {
-        "+".to_string() + self.flags.iter().map(
-            |c| *c as u8 as char).collect::<String>()
+    /// Get flag as string
+    pub fn decoration(&self) -> String {
+        if self.flags.contains(&OperatorPrivilege) {
+            "@".to_string()
+        } else if self.flags.contains(&VoicePrivilege) {
+            "+".to_string()
+        } else {
+            "".to_string()
+        }
     }
     
     /// Checks whether a member is the operator of the channel
@@ -191,13 +203,7 @@ impl Member {
     
     /// Updates the cached decorated nick
     fn update_decorated_nick(&mut self) {
-        self.decorated_nick = if self.flags.contains(&OperatorPrivilege) {
-            "@".to_string().append(self.nick())
-        } else if self.flags.contains(&VoicePrivilege) {
-            "+".to_string().append(self.nick())
-        } else {
-            self.nick.to_string()
-        }
+        self.decorated_nick = self.decoration().append(self.nick())
     }
     
     /// Returns the nickname, prefixed with:
@@ -210,6 +216,21 @@ impl Member {
     /// Getter for nick
     pub fn nick(&self) -> &str {
         return self.nick.as_slice()
+    }
+    
+    /// Getter for host
+    pub fn hostname(&self) -> &str {
+        return self.hostname.as_slice()
+    }
+    
+    /// Getter for username
+    pub fn username(&self) -> &str {
+        return self.username.as_slice()
+    }
+    
+    /// Getter for realname
+    pub fn realname(&self) -> &str {
+        return self.realname.as_slice()
     }
     
     /// Setter for nick
@@ -256,6 +277,7 @@ pub enum ChannelEvent {
     Join(Member, Option<Vec<u8>>),
     Quit(ClientProxy, msg::QuitMessage),
     Part(ClientProxy, msg::PartMessage),
+    Who(ClientProxy, msg::WhoMessage),
     Reply(ChannelResponse, ClientProxy)
 }
 
@@ -313,6 +335,7 @@ impl Channel {
                 self.handle_join(member, password),
             Part(proxy, msg) => self.handle_part(proxy, msg),
             Quit(proxy, msg) => self.handle_quit(proxy, msg),
+            Who(proxy, msg) => self.handle_who(proxy, msg),
             Reply( _, proxy) => 
                 self.handle_names(&proxy)
         }
@@ -348,14 +371,6 @@ impl Channel {
         for (_, member) in self.members.iter() {
             member.send_msg(message.clone())
         }
-    }
-    
-    fn broadcast_channel_mode(&self, member: &Member) {
-        let msg = RawMessage::new(cmd::MODE, [
-            self.name.as_slice(),
-            member.flags().as_slice(), 
-            member.nick()], Some(self.server_name.as_slice()));
-        self.broadcast(msg)
     }
     
     /// Sends the list of users to the client
@@ -406,7 +421,11 @@ impl Channel {
             [self.name.as_slice(), "No topic set."]);
         self.handle_names(member.proxy());
         if self.members.len() == 1 { // first user
-            self.broadcast_channel_mode(member)
+            let msg = RawMessage::new(cmd::MODE, [
+                self.name.as_slice(),
+                format!("+{}", member.decoration()).as_slice(), 
+                member.nick()], Some(self.server_name.as_slice()));
+            self.broadcast(msg)
         }
     }
     
@@ -428,6 +447,52 @@ impl Channel {
                 [self.name.as_slice(), "You are not on this channel."]
             )
         }
+    }
+    
+    /// Handles the who message
+    /// The reply consists of two parts:
+    /// 
+    /// ```
+    /// 352    RPL_WHOREPLY
+    ///        "<channel> <user> <host> <server> <nick>
+    ///        ( "H" / "G" > ["*"] [ ( "@" / "+" ) ]
+    ///        :<hopcount> <real name>"
+    /// 
+    /// 315    RPL_ENDOFWHO
+    ///        "<name> :End of WHO list"
+    /// ```
+    /// 
+    /// Unfortunately the RFC 2812 does not specify what H, G, *, @ or + mean.
+    /// @/+ is op/voice.
+    /// * is maybe irc op
+    /// H/G means here/gone in terms of the away status
+    /// 
+    pub fn handle_who(&mut self, client: ClientProxy, message: msg::WhoMessage) {
+        if (self.flags.contains(&Private) || self.flags.contains(&Secret))
+        && !self.member_with_id(client.id()).is_some() {
+            // Don't give information about this channel to the outside
+            // this should also be ok for secret because RPL_ENDOFWHO is
+            // always sent.
+        } else {
+            for (_, member) in self.members.iter() {
+                self.send_response(&client, cmd::RPL_WHOREPLY, [
+                    self.name.as_slice(),
+                    member.username(),
+                    member.hostname(),
+                    self.server_name.as_slice(),
+                    member.nick(),
+                    format!("{}{}{}", 
+                        "H", // always here as long away is not implemented
+                        "", // * is not supported yet
+                        member.decoration()
+                    ).as_slice(),
+                    format!("0 {}", member.realname()).as_slice()
+                ]);
+            }
+        }
+        self.send_response(&client, cmd::RPL_ENDOFWHO, [
+            message.mask.as_slice(), "End of WHO list"
+        ]);
     }
     
     /// Handles the quit event

@@ -150,6 +150,18 @@ QuitMessage for QUIT as Quit { reason: Option<Vec<u8>> } <- fn(message) {
     })
 };
 
+WhoMessage for WHO as Who { mask: String, op_only: bool } <- fn(message) { 
+    let mask = message.params().as_slice().get(0).map_or("0".to_string(),
+        |&v| String::from_utf8_lossy(v).to_string());
+    let op_only = match message.params().as_slice().get(1) {
+        Some(&o) => o == b"o",
+        None => false
+    };
+    Ok(WhoMessage {
+        raw: message, mask: mask, op_only: op_only
+    })
+};
+
 PartMessage for PART as Part { channels: Vec<String>, reason: Option<Vec<u8>> } <- fn(message) {
     let params = message.params();
     let mut channels = Vec::new();
@@ -232,5 +244,4 @@ UserMessage for USER as User { username: String, realname: String } <- fn(messag
         ], None))
     }
 };
-
 }

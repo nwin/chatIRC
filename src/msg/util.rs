@@ -75,7 +75,7 @@ pub fn verify_receiver<'a>(recv: &'a [u8]) -> Receiver {
 }
 
 
-#[deriving(Hash, PartialEq, Eq)]
+#[deriving(Hash, PartialEq, Eq, Clone)]
 /// A host mask in the form "*!*@*.*"
 pub struct HostMask {
     mask: String
@@ -111,8 +111,22 @@ impl HostMask {
         }
         !mask_chars.next().is_some()
     }
+    
+    /// Returns the hostname
+    pub fn host(&self) -> Option<&str> {
+        self.mask.as_slice().split('@').last()
+    }
+    /// Returns the username
+    pub fn user(&self) -> Option<&str> {
+        self.mask.as_slice().split('@').nth(0).and_then(|v| 
+            v.split('!').last()
+        )
+    }
+    /// Returns the nickname
+    pub fn nick(&self) -> Option<&str> {
+        self.mask.as_slice().split('!').nth(0)
+    }
 }
-
 
 #[cfg(test)]
 mod tests {
