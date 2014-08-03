@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use client::{ClientId, ClientProxy};
 use msg::{RawMessage};
 use msg::util::{HostMask};
+use msg;
 
 use cmd;
 
@@ -245,7 +246,6 @@ pub type Flags = HashSet<ChannelMode>;
 /// Enumeration of command a channel can handle
 pub enum ChannelCommand {
     PRIVMSG,
-    LEAVE,
     MODE
 }
 pub enum ChannelResponse {
@@ -256,7 +256,8 @@ pub enum ChannelResponse {
 pub enum ChannelEvent {
     Message(ChannelCommand, ClientId, RawMessage),
     Join(Member, Option<Vec<u8>>),
-    Reply(ChannelResponse, ClientId, ClientProxy)
+    Part(ClientProxy, msg::PartMessage),
+    Reply(ChannelResponse, ClientProxy)
 }
 
 /// Represents an IRC channel
@@ -306,15 +307,22 @@ impl Channel {
             Message(command, client_id, message) => {
                 match command {
                     PRIVMSG => self.handle_privmsg(client_id, message),
-                    LEAVE => self.handle_leave(client_id, message),
                     MODE => self.handle_mode(client_id, message),
                 }
-            }
+            },
             Join(member, password) => 
                 self.handle_join(member, password),
-            Reply( _, client_id, proxy) => 
-                self.handle_names(client_id, &proxy)
+            Part(proxy, msg) => self.handle_part(proxy, msg),
+            Reply( _, proxy) => 
+                self.handle_names(&proxy)
         }
+    }
+    
+    pub fn send_response(&self, client: ClientProxy, command: cmd::ResponseCode, 
+                         params: &[&str]) {
+        client.send_msg(RawMessage::new(cmd::REPLY(command), 
+            params,
+            Some(self.server_name.as_slice())))
     }
     
     fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
@@ -349,7 +357,7 @@ impl Channel {
     }
     
     /// Sends the list of users to the client
-    pub fn handle_names(&self, client_id: ClientId, proxy: &ClientProxy) {
+    pub fn handle_names(&self, proxy: &ClientProxy) {
         // TODO check if channel is visible to user…
         for (_, member) in self.members.iter() {
             proxy.send_msg(
@@ -399,11 +407,30 @@ impl Channel {
         let member = self.member_with_id(id).unwrap();
         member.send_response(cmd::RPL_NOTOPIC, 
             [self.name.as_slice(), "No topic set."]);
-        self.handle_names(id, member.proxy());
+        self.handle_names(member.proxy());
         if self.members.len() == 1 { // first user
             self.broadcast_channel_mode(member)
         }
     }
+    
+    /// Handles the part attempt of a user
+    pub fn handle_part(&mut self, client: ClientProxy, message: msg::PartMessage) {
+        let nick = self.member_with_id(client.id()).map(|v| v.nick.clone());
+        match nick {
+            Some(nick) => {
+                self.nicknames.remove(&client.id());
+                self.members.remove(&nick);
+                //self.broadcast(RawMessage(cmd::PART, [
+                //    self.name, message.reason
+                //], Some(nick)))
+            },
+            None => self.send_response(client, cmd::ERR_BADCHANNELKEY,
+                [self.name.as_slice(),
+                "Password is wrong"]
+            )
+        }
+    }
+    
     
     /// Handles the quit/part event
     pub fn handle_leave(&mut self, client_id: ClientId, mut message: RawMessage) {

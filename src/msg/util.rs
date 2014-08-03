@@ -54,6 +54,7 @@ pub fn verify_channel<'a>(channel: &'a [u8]) -> Option<&'a str> {
     }
 }
 
+#[deriving(Clone)]
 pub enum Receiver {
     ChannelName(String),
     NickName(String),

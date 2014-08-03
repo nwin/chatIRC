@@ -32,6 +32,7 @@ impl Message {
 
 $(
 
+#[deriving(Clone)]
 pub struct $name {
     pub raw: RawMessage,
     $(pub $attr: $ty,)*
@@ -148,6 +149,35 @@ QuitMessage for QUIT as Quit { reason: Option<String> } <- fn(message) {
         raw: message, reason: reason
     })
 };
+
+PartMessage for PART as Part { channels: Vec<String>, reason: Option<Vec<u8>> } <- fn(message) {
+    let params = message.params();
+    let mut channels = Vec::new();
+    if params.len() > 0 {
+        for channel_name in params[0].as_slice().split(|c| *c == b',') {
+            match util::verify_channel(channel_name) {
+                Some(channel) => {
+                    channels.push(channel.to_string());
+                },
+                None => return Err(RawMessage::new(REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                    String::from_utf8_lossy(channel_name).as_slice(),
+                    "Invalid channel name."
+                ], None))
+            }
+        }
+        Ok(PartMessage{
+            raw: message.clone(),
+            channels: channels,
+            reason: params.as_slice().get(1).map(|v| v.to_vec())
+        })
+    } else {
+         Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            message.command().to_string().as_slice(),
+            "no params given"
+        ], None))
+    }
+};
+
 
 PingMessage for PING as Ping { payload: Option<String> } <- fn(message) {
     let payload = message.params().as_slice().get(0).map(

@@ -46,6 +46,7 @@ commands!{
     JOIN        #[doc = "`JOIN` command, see http://tools.ietf.org/html/rfc1459.html#section-4.2.1"];
     PING        #[doc = "`PING` command"];
     NAMES       #[doc = "`NAMES` command"];
+    PART        #[doc = "`PART` command"];
     QUIT        #[doc = "`QUIT` command"];
     PONG        #[doc = "`PONG` command"];
     NICK        #[doc = "`NICK` command"];

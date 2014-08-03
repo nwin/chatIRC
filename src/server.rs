@@ -168,6 +168,7 @@ impl IrcServer {
             // by the socket timeout
             msg::Pong(_) => {},
             msg::Join(msg) => self.handle_join(origin, msg),
+            msg::Part(msg) => self.handle_part(origin, msg),
             msg::Names(msg) => self.handle_names(origin, msg),
             msg::Nick(msg) => self.handle_nick(origin, msg),
             msg::User(msg) => self.handle_user(origin, msg),
@@ -235,7 +236,6 @@ impl IrcServer {
                         Some(channel) => {
                             channel.send(channel::Reply(
                                 channel::NAMES,
-                                origin.borrow().id(),
                                 origin.borrow().proxy()
                             ))
                         } 
@@ -322,6 +322,23 @@ impl IrcServer {
                     password
                 )
             )
+        }
+    }
+    
+    /// Handles the PART command
+    fn handle_part(&mut self, origin: SharedClient, message: msg::PartMessage) {
+        for channel_name in message.channels.iter() {
+            match self.channels.find_mut(channel_name) {
+                Some(channel) => channel.send(channel::Part(
+                        origin.borrow().proxy(), 
+                        message.clone()
+                )),
+                None => origin
+                    .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
+                        Some(channel_name.as_slice()), Some("No such channel"))
+                    
+                    
+            }
         }
     }
 }

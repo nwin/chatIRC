@@ -64,17 +64,23 @@ impl Clone for ClientId {
 
 /// Proxy that forwards a message to a client
 pub struct ClientProxy {
+    id: ClientId,
     tx: Sender<RawMessage>
 }
 
 impl ClientProxy {
-    fn new(tx: Sender<RawMessage>) -> ClientProxy {
+    fn new(id: ClientId, tx: Sender<RawMessage>) -> ClientProxy {
         ClientProxy {
+            id: id,
             tx: tx
         }
     }
+    
     pub fn send_msg(&self, msg: RawMessage) {
         let _ = self.tx.send_opt(msg);
+    }
+    pub fn id(&self) -> ClientId {
+        self.id
     }
 }
 
@@ -208,7 +214,7 @@ impl Client {
     
     /// Returns a proxy to the current client
     pub fn proxy(&self) -> ClientProxy {
-        ClientProxy::new(self.msg_tx.clone())
+        ClientProxy::new(self.id(), self.msg_tx.clone())
     }
 }
 
