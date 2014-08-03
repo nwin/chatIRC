@@ -266,12 +266,16 @@ impl IrcServer {
     }
     
     /// Handles the QUIT command
-    fn handle_quit(&mut self, origin: SharedClient, _: msg::QuitMessage) {
-        // TODO communicate this to other users
+    fn handle_quit(&mut self, origin: SharedClient, message: msg::QuitMessage) {
         let mut client = origin.borrow_mut();
         client.close_connection();
         self.nicknames.remove(&client.nickname);
         self.clients.remove(&client.id());
+        let proxy = client.proxy();
+        for (_, channel) in self.channels.iter() {
+            // TODO make this more performant, cache channels in user?
+            channel.send(channel::Quit(proxy.clone(), message.clone()))
+        }
     }
     
     /// Handles the MODE command

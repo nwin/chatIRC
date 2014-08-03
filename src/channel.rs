@@ -252,8 +252,9 @@ pub enum ChannelResponse {
 
 /// Enumeration of events a channel can receive
 pub enum ChannelEvent {
-    Message(ChannelCommand, ClientId, RawMessage),
+    Message(ChannelCommand, ClientId, RawMessage), // This will be removed later
     Join(Member, Option<Vec<u8>>),
+    Quit(ClientProxy, msg::QuitMessage),
     Part(ClientProxy, msg::PartMessage),
     Reply(ChannelResponse, ClientProxy)
 }
@@ -311,6 +312,7 @@ impl Channel {
             Join(member, password) => 
                 self.handle_join(member, password),
             Part(proxy, msg) => self.handle_part(proxy, msg),
+            Quit(proxy, msg) => self.handle_quit(proxy, msg),
             Reply( _, proxy) => 
                 self.handle_names(&proxy)
         }
@@ -428,24 +430,30 @@ impl Channel {
         }
     }
     
+    /// Handles the quit event
+    pub fn handle_quit(&mut self, client: ClientProxy, message: msg::QuitMessage) {
+        self.handle_leave(client, cmd::QUIT, message.reason)
+    }
     
     /// Handles the quit/part event
-    pub fn handle_leave(&mut self, client_id: ClientId, mut message: RawMessage) {
-        let nick = {
-            let origin = match self.member_with_id(client_id) {
-                Some(member) => member,
-                None => return // TODO error message
-            };
-            message.set_prefix(origin.nick());
-            for (_, member) in self.members.iter() {
-                if origin != member {
-                    member.send_msg(message.clone())
-                }
-            }
-            origin.nick().to_string()
-        };
-        self.nicknames.remove(&client_id);
-        self.members.remove(&nick);
+    pub fn handle_leave(&mut self, client: ClientProxy,
+                        command: cmd::Command, reason: Option<Vec<u8>>) {
+        let nick = self.member_with_id(client.id()).map(|v| v.nick.clone());
+        match nick {
+            Some(nick) => {
+                let payload = match reason {
+                    None => vec![self.name.as_bytes()],
+                    Some(ref reason) =>  vec![self.name.as_bytes(), reason.as_slice()],
+                };
+                self.broadcast(RawMessage::new_raw(
+                    command, payload.as_slice(), Some(nick.as_bytes())));
+                self.nicknames.remove(&client.id());
+                self.members.remove(&nick);
+            },
+            None => self.send_response(&client, cmd::ERR_NOTONCHANNEL,
+                [self.name.as_slice(), "You are not on this channel."]
+            )
+        }
     }
     
     /// Handles the channel mode message

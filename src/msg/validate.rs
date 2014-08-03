@@ -142,9 +142,9 @@ NamesMessage for NAMES as Names { receivers: Vec<util::Receiver> } <- fn(message
     }
 };
 
-QuitMessage for QUIT as Quit { reason: Option<String> } <- fn(message) { 
+QuitMessage for QUIT as Quit { reason: Option<Vec<u8>> } <- fn(message) { 
     let reason = message.params().as_slice().get(0).map(
-        |&v| String::from_utf8_lossy(v).to_string());
+        |&v| v.to_vec());
     Ok(QuitMessage {
         raw: message, reason: reason
     })

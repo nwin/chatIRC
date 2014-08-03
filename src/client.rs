@@ -63,6 +63,7 @@ impl Clone for ClientId {
 }
 
 /// Proxy that forwards a message to a client
+#[deriving(Clone)]
 pub struct ClientProxy {
     id: ClientId,
     nick: String,
