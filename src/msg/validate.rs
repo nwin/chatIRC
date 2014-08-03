@@ -51,7 +51,7 @@ ModeMessage for MODE as Mode { receiver: ::msg::Receiver, params: Vec<Vec<u8>> }
     if params.len() > 0 {
         match util::verify_receiver(params[0]) {
             util::InvalidReceiver(name) => return Err(RawMessage::new(REPLY(cmd::ERR_USERNOTINCHANNEL), [
-                message.command().to_string().as_slice(),
+                "*", message.command().to_string().as_slice(),
                 format!("invalid channel name {}", name).as_slice()
                 ], None)
             ),
@@ -64,7 +64,7 @@ ModeMessage for MODE as Mode { receiver: ::msg::Receiver, params: Vec<Vec<u8>> }
         }
     } else {
          return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "receiver given"
         ], None))
     }
@@ -83,7 +83,7 @@ PrivMessage for PRIVMSG as Priv { receiver: Vec<::msg::Receiver>, message: Vec<u
         })
     } else {
          return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "not enought params given"
         ], None))
     }
@@ -110,14 +110,14 @@ JoinMessage for JOIN as Join { targets: Vec<String>, passwords: Vec<Option<Vec<u
                     }
                 },
                 None => return Err(RawMessage::new(REPLY(cmd::ERR_NOSUCHCHANNEL), [
-                    String::from_utf8_lossy(channel_name).as_slice(),
+                    "*", String::from_utf8_lossy(channel_name).as_slice(),
                     "Invalid channel name."
                 ], None))
             }
         }
     } else {
          return Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "no params given"
         ], None))
     }
@@ -136,7 +136,7 @@ NamesMessage for NAMES as Names { receivers: Vec<util::Receiver> } <- fn(message
         })
     } else {
         Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "not enought params given"
         ], None))
     }
@@ -160,7 +160,7 @@ PartMessage for PART as Part { channels: Vec<String>, reason: Option<Vec<u8>> } 
                     channels.push(channel.to_string());
                 },
                 None => return Err(RawMessage::new(REPLY(cmd::ERR_NOSUCHCHANNEL), [
-                    String::from_utf8_lossy(channel_name).as_slice(),
+                    "*", String::from_utf8_lossy(channel_name).as_slice(),
                     "Invalid channel name."
                 ], None))
             }
@@ -172,7 +172,7 @@ PartMessage for PART as Part { channels: Vec<String>, reason: Option<Vec<u8>> } 
         })
     } else {
          Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "no params given"
         ], None))
     }
@@ -206,13 +206,13 @@ NickMessage for NICK as Nick { nick: String } <- fn(message) {
             }),
             None => 
                 Err(RawMessage::new(REPLY(cmd::ERR_ERRONEUSNICKNAME), [
-                    String::from_utf8_lossy(params[0].as_slice()).as_slice(),
+                    "*", String::from_utf8_lossy(params[0].as_slice()).as_slice(),
                     "invalid nick name"
                 ], None))
         }
     } else {
         Err(RawMessage::new(REPLY(cmd::ERR_NONICKNAMEGIVEN), [
-            "no nickname given"
+            "*", "no nickname given"
         ], None))
     }
 };
@@ -227,7 +227,7 @@ UserMessage for USER as User { username: String, realname: String } <- fn(messag
         })
     } else {
         Err(RawMessage::new(REPLY(cmd::ERR_NEEDMOREPARAMS), [
-            message.command().to_string().as_slice(),
+            "*", message.command().to_string().as_slice(),
             "not enought params given"
         ], None))
     }

@@ -147,9 +147,7 @@ impl Member {
     }
     
     pub fn send_response(&self, command: cmd::ResponseCode, params: &[&str]) {
-        self.send_msg(RawMessage::new(cmd::REPLY(command), 
-            params,
-            Some(self.server_name.as_slice())))
+        self.proxy.send_response(command, params, self.server_name.as_slice())
     }
     
     /// Sends a message to the client
@@ -318,11 +316,13 @@ impl Channel {
         }
     }
     
-    pub fn send_response(&self, client: ClientProxy, command: cmd::ResponseCode, 
+    pub fn send_response(&self, client: &ClientProxy, command: cmd::ResponseCode, 
                          params: &[&str]) {
-        client.send_msg(RawMessage::new(cmd::REPLY(command), 
+        client.send_response(
+            command, 
             params,
-            Some(self.server_name.as_slice())))
+            self.server_name.as_slice()
+        )
     }
     
     fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
@@ -359,20 +359,15 @@ impl Channel {
     /// Sends the list of users to the client
     pub fn handle_names(&self, proxy: &ClientProxy) {
         // TODO check if channel is visible to user…
+        // TODO replace with generic list sending function
         for (_, member) in self.members.iter() {
-            proxy.send_msg(
-                RawMessage::new(cmd::REPLY(cmd::RPL_NAMREPLY), 
-                [String::from_str("= ").append(self.name.as_slice()).as_slice(),
-                 member.decorated_nick()   
-                ],
-                Some(self.server_name.as_slice()))
-            )
+            self.send_response(proxy, cmd::RPL_NAMREPLY, [
+                String::from_str("= ").append(self.name.as_slice()).as_slice(),
+                member.decorated_nick()   
+            ])
         }
-        proxy.send_msg(
-            RawMessage::new(cmd::REPLY(cmd::RPL_ENDOFNAMES), 
-            [self.name.as_slice(), "End of /NAMES list"],
-            Some(self.server_name.as_slice()))
-        )
+        self.send_response(proxy, cmd::RPL_ENDOFNAMES, 
+            [self.name.as_slice(), "End of /NAMES list"])
     }
     
     /// Handles the join attempt of a user
@@ -418,16 +413,16 @@ impl Channel {
         let nick = self.member_with_id(client.id()).map(|v| v.nick.clone());
         match nick {
             Some(nick) => {
-                self.nicknames.remove(&client.id());
-                self.members.remove(&nick);
                 let payload = match message.reason {
                     None => vec![self.name.as_bytes()],
                     Some(ref reason) =>  vec![self.name.as_bytes(), reason.as_slice()],
                 };
                 self.broadcast(RawMessage::new_raw(
-                    cmd::PART, payload.as_slice(), Some(nick.as_bytes())))
+                    cmd::PART, payload.as_slice(), Some(nick.as_bytes())));
+                self.nicknames.remove(&client.id());
+                self.members.remove(&nick);
             },
-            None => self.send_response(client, cmd::ERR_NOTONCHANNEL,
+            None => self.send_response(&client, cmd::ERR_NOTONCHANNEL,
                 [self.name.as_slice(), "You are not on this channel."]
             )
         }

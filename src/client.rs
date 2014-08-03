@@ -65,13 +65,15 @@ impl Clone for ClientId {
 /// Proxy that forwards a message to a client
 pub struct ClientProxy {
     id: ClientId,
+    nick: String,
     tx: Sender<RawMessage>
 }
 
 impl ClientProxy {
-    fn new(id: ClientId, tx: Sender<RawMessage>) -> ClientProxy {
+    fn new(id: ClientId, nick: String, tx: Sender<RawMessage>) -> ClientProxy {
         ClientProxy {
             id: id,
+            nick: nick,
             tx: tx
         }
     }
@@ -79,8 +81,21 @@ impl ClientProxy {
     pub fn send_msg(&self, msg: RawMessage) {
         let _ = self.tx.send_opt(msg);
     }
+    
+    pub fn send_response<'a>(&'a self, command: ResponseCode, 
+                         params: &[&'a str], origin: &str) {
+        let msg = RawMessage::new(
+            REPLY(command), 
+            (vec![self.nick.as_slice()] + params).as_slice(), 
+            Some(origin)
+        );
+        let _ = self.tx.send_opt(msg);
+    }
     pub fn id(&self) -> ClientId {
         self.id
+    }
+    pub fn update_nick(&mut self, nick: String) {
+        self.nick = nick
     }
 }
 
@@ -133,7 +148,10 @@ impl Client {
                         debug!("received message {}", raw.to_string());
                         match Message::from_raw_message(raw) {
                             Ok(message) => tx.send(MessageReceived(id, message)),
-                            Err(err_msg) => err_tx.send(err_msg)
+                            Err(err_msg) => {
+                                // TODO inject proper receiver
+                                err_tx.send(err_msg)
+                            }
                         }
                     },
                     Err(_) => {}
@@ -214,7 +232,7 @@ impl Client {
     
     /// Returns a proxy to the current client
     pub fn proxy(&self) -> ClientProxy {
-        ClientProxy::new(self.id(), self.msg_tx.clone())
+        ClientProxy::new(self.id(), self.nickname.clone(), self.msg_tx.clone())
     }
 }
 
