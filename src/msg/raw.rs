@@ -1,3 +1,5 @@
+use std::mem;
+
 use cmd::*;
 
 #[deriving(Show, Clone)]
@@ -36,12 +38,23 @@ impl RawMessage {
     pub fn new(command: Command, 
                 params: &[&str], 
                 prefix: Option<&str>) -> RawMessage {
+        RawMessage::new_raw(
+            command,
+            unsafe { mem::transmute(params) },
+            prefix.map(|v| v.as_bytes())
+        )
+    }
+                       
+    /// Creates a new message
+    pub fn new_raw(command: Command, 
+                   params: &[&[u8]], 
+                   prefix: Option<&[u8]>) -> RawMessage {
         let mut raw_message = Vec::with_capacity(20);
         let msg_prefix = prefix.map(|p| {
             raw_message.push(b':');
-            raw_message.push_all(p.as_bytes());
+            raw_message.push_all(p);
             raw_message.push(b' ');
-            ASlice { start: 1, end: p.as_bytes().len() + 1 }
+            ASlice { start: 1, end: p.len() + 1 }
         });
         let cmd = command.to_bytes();
         let cmd_bytes = cmd.as_slice();
@@ -51,7 +64,7 @@ impl RawMessage {
         let mut start = msg_command.end;
         let num_params = params.len();
         let msg_params = params.iter().enumerate().map( |(i, &param)| {
-            let bytes = param.as_bytes();
+            let bytes = param;
             raw_message.push(b' ');
             let offset = if i + 1 == num_params {
                 raw_message.push(b':');

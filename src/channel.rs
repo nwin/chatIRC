@@ -420,13 +420,15 @@ impl Channel {
             Some(nick) => {
                 self.nicknames.remove(&client.id());
                 self.members.remove(&nick);
-                //self.broadcast(RawMessage(cmd::PART, [
-                //    self.name, message.reason
-                //], Some(nick)))
+                let payload = match message.reason {
+                    None => vec![self.name.as_bytes()],
+                    Some(ref reason) =>  vec![self.name.as_bytes(), reason.as_slice()],
+                };
+                self.broadcast(RawMessage::new_raw(
+                    cmd::PART, payload.as_slice(), Some(nick.as_bytes())))
             },
-            None => self.send_response(client, cmd::ERR_BADCHANNELKEY,
-                [self.name.as_slice(),
-                "Password is wrong"]
+            None => self.send_response(client, cmd::ERR_NOTONCHANNEL,
+                [self.name.as_slice(), "You are not on this channel."]
             )
         }
     }
