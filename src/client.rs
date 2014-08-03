@@ -142,7 +142,7 @@ impl Client {
         spawn(proc() {
             // TODO: write a proper 510 char line iterator
             // as it is now it is probably very slow
-            // TODO handle failures properly
+            // TODO handle failures properly, send QUIT
             for line in BufferedReader::new(receiving_stream).lines() {
                 match RawMessage::parse(line.unwrap().as_slice()
                 .trim_right().as_bytes()) {
@@ -163,7 +163,7 @@ impl Client {
         spawn(proc() {
             // TODO: socket timeout
             // implement when pings are send out
-            // TODO handle failures properly
+            // TODO handle failures properly, send QUIT
             let mut output_stream = BufferedWriter::new(stream);
             for message in rx.iter() {
                 debug!("sending message {}", message.to_string());

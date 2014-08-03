@@ -18,7 +18,6 @@ pub mod client;
 pub mod server;
 #[allow(dead_code)]
 pub mod channel;
-#[allow(dead_code)]
 pub mod msg;
 pub mod cmd;
 
