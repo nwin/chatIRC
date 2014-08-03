@@ -571,7 +571,7 @@ impl Channel {
 #[cfg(test)]
 mod tests {
 	use super::{modes_do, BanMask, ExceptionMask};
-    use message::{RawMessage};
+    use msg::{RawMessage};
 	/// Tests the mode parser
     
     
