@@ -153,35 +153,6 @@ impl Server {
         });
         Ok(rx)
     }
-    /// Main message dispatcher
-    ///
-    /// This method processes all messages comming from any client. Be carefull
-    /// to keep the processing time of each message as short as possible to
-    /// archive bester server performance. Should spawn new threads if the processing
-    /// take more time.
-    //fn dispatch(&mut self, origin: SharedClient, message: Message) {
-    //    // TODO: wrap this in a proc?
-    //    match message {
-    //        msg::Priv(msg) => self.handle_privmsg(origin, msg),
-    //        msg::Mode(msg) => self.handle_mode(origin, msg),
-    //        // ignoring PONG, this is basically handled
-    //        // by the socket timeout
-    //        msg::Pong(_) => {},
-    //        msg::Join(msg) => self.handle_join(origin, msg),
-    //        msg::Part(msg) => self.handle_part(origin, msg),
-    //        msg::Who(msg) => self.handle_who(origin, msg),
-    //        msg::Names(msg) => self.handle_names(origin, msg),
-    //        msg::Nick(msg) => self.handle_nick(origin, msg),
-    //        msg::User(msg) => self.handle_user(origin, msg),
-    //        msg::Ping(_) => {}, // ignoring this message, I am a server
-    //        msg::Quit(msg) => self.handle_quit(origin, msg),
-    //        msg::Reply(_) => {}, // should not come from a client, ignore
-    //        msg::Unknown(cmd) => 
-    //            error!(
-    //                "Handling of message {} not implemented yet.",
-    //                String::from_utf8_lossy(cmd.as_slice()))
-    //    }
-    //}
     
     /// Getter for hostname
     pub fn host(&self) -> &str {
@@ -326,23 +297,6 @@ impl Server {
                 }
             },
             _ => error!("user modes not supported yet")
-        }
-    }
-    
-    /// Handles the PART command
-    fn handle_part(&mut self, origin: SharedClient, message: msg::PartMessage) {
-        for channel_name in message.channels.iter() {
-            match self.channels.find_mut(channel_name) {
-                Some(channel) => channel.send(channel::Part(
-                        origin.borrow().proxy(), 
-                        message.clone()
-                )),
-                None => origin
-                    .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                        Some(channel_name.as_slice()), Some("No such channel"))
-                    
-                    
-            }
         }
     }
 }

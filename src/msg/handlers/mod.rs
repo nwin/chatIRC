@@ -9,6 +9,7 @@ use super::{RawMessage};
 use super::util;
 
 mod join;
+mod part;
 
 macro_rules! handle {
     {$(
@@ -27,7 +28,8 @@ pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Ra
 }}
 
 handle!{
-    JOIN with self::join::JoinHandler;
+    JOIN with self::join::Join;
+    PART with self::part::Part;
 }
 
 ///// Temporary dispatcher
@@ -41,20 +43,20 @@ handle!{
 /// The general template for the implementation of new messages is:
 ///
 /// ```no_run
-/// struct XXHandler {
+/// pub struct Handler {
 ///     raw: RawMessage,
 /// }
-/// impl XXHandler {
+/// impl Handler {
 ///     fn handle_XX() {
 ///     }
 /// }
-/// impl MessageHandler for XXHandler {
-///     fn from_message(message: RawMessage) -> Result<Box<Self>, RawMessage> {
+/// impl super::MessageHandler for Handler {
+///     fn from_message(message: RawMessage) -> Result<Box<Join>, RawMessage> {
 ///     }
 ///     fn invoke(self, server: &mut Server, origin: SharedClient) {
 ///     }
 ///     fn raw_message(&self) -> &RawMessage {
-///         self.raw
+///         &self.raw
 ///     }
 /// }
 /// ```

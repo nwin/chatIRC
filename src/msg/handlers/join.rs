@@ -10,13 +10,13 @@ use client::SharedClient;
 ///
 ///    Command: JOIN
 /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
-pub struct JoinHandler {
+pub struct Join {
     raw: RawMessage,
     targets: Vec<String>,
     passwords: Vec<Option<Vec<u8>>>,
 }
 
-impl JoinHandler {
+impl Join {
     fn handle_join(this: &mut channel::Channel, mut member: channel::Member, password: Option<Vec<u8>>) {
         if this.password.len() != 0 {
             if !match password { Some(password) => password == this.password,
@@ -58,8 +58,8 @@ impl JoinHandler {
     }
 }
 
-impl super::MessageHandler for JoinHandler {
-    fn from_message(message: RawMessage) -> Result<Box<JoinHandler>, RawMessage> { 
+impl super::MessageHandler for Join {
+    fn from_message(message: RawMessage) -> Result<Box<Join>, RawMessage> { 
         let params = message.params();
         let mut targets = Vec::new();
         let mut passwords = Vec::new();
@@ -91,7 +91,7 @@ impl super::MessageHandler for JoinHandler {
                 "no params given"
             ], None))
         }
-        Ok(box JoinHandler {
+        Ok(box Join {
             raw: message.clone(), targets: targets, passwords: passwords
         })
     }
@@ -117,7 +117,7 @@ impl super::MessageHandler for JoinHandler {
                 )
             }).send(
                 channel::HandleMut(proc(channel) {
-                    JoinHandler::handle_join(channel, member, password)
+                    Join::handle_join(channel, member, password)
                 })
             )
         }

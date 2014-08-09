@@ -275,7 +275,6 @@ pub enum ChannelResponse {
 pub enum ChannelEvent {
     Message(ChannelCommand, ClientId, RawMessage), // This will be removed later
     Quit(ClientProxy, msg::QuitMessage),
-    Part(ClientProxy, msg::PartMessage),
     Who(ClientProxy, msg::WhoMessage),
     Reply(ChannelResponse, ClientProxy),
     Handle(proc(&Channel): Send),
@@ -338,6 +337,17 @@ impl Channel {
         }
     }
     
+    /// Adds a member to the channel
+    pub fn remove_member(&mut self, id: &ClientId) -> bool {
+        let nick = { match self.nicknames.find(id) {
+                Some(nick) => nick.clone(),
+                None => return false
+        }};
+        self.nicknames.remove(id);
+        self.members.remove(&nick);
+        true
+    }
+    
     /// Starts listening for events in a separate thread
     pub fn listen(self) -> Sender<ChannelEvent> {
         let (tx, rx) = channel();
@@ -394,7 +404,6 @@ impl Channel {
                     MODE => self.handle_mode(client_id, message),
                 }
             },
-            Part(proxy, msg) => self.handle_part(proxy, msg),
             Quit(proxy, msg) => self.handle_quit(proxy, msg),
             Who(proxy, msg) => self.handle_who(proxy, msg),
             Reply( _, proxy) => 
@@ -414,26 +423,6 @@ impl Channel {
         }
         self.send_response(proxy, cmd::RPL_ENDOFNAMES, 
             [self.name.as_slice(), "End of /NAMES list"])
-    }
-    
-    /// Handles the part attempt of a user
-    pub fn handle_part(&mut self, client: ClientProxy, message: msg::PartMessage) {
-        let nick = self.member_with_id(client.id()).map(|v| v.nick.clone());
-        match nick {
-            Some(nick) => {
-                let payload = match message.reason {
-                    None => vec![self.name.as_bytes()],
-                    Some(ref reason) =>  vec![self.name.as_bytes(), reason.as_slice()],
-                };
-                self.broadcast(RawMessage::new_raw(
-                    cmd::PART, payload.as_slice(), Some(nick.as_bytes())));
-                self.nicknames.remove(&client.id());
-                self.members.remove(&nick);
-            },
-            None => self.send_response(&client, cmd::ERR_NOTONCHANNEL,
-                [self.name.as_slice(), "You are not on this channel."]
-            )
-        }
     }
     
     /// Handles the who message
