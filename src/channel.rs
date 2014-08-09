@@ -274,11 +274,12 @@ pub enum ChannelResponse {
 /// Enumeration of events a channel can receive
 pub enum ChannelEvent {
     Message(ChannelCommand, ClientId, RawMessage), // This will be removed later
-    Join(Member, Option<Vec<u8>>),
     Quit(ClientProxy, msg::QuitMessage),
     Part(ClientProxy, msg::PartMessage),
     Who(ClientProxy, msg::WhoMessage),
-    Reply(ChannelResponse, ClientProxy)
+    Reply(ChannelResponse, ClientProxy),
+    Handle(proc(&Channel): Send),
+    HandleMut(proc(&mut Channel): Send),
 }
 
 /// Represents an IRC channel
@@ -286,7 +287,7 @@ pub struct Channel {
     name: String,
     server_name: String,
     topic: String,
-    password: Vec<u8>,
+    pub password: Vec<u8>,
     flags: Flags,
     members: HashMap<String, Member>,
     nicknames: HashMap<ClientId, String>,
@@ -311,6 +312,32 @@ impl Channel {
         }
     }
     
+    /// Getter for channel name
+    pub fn name(&self) -> &str {
+        self.name.as_slice()
+    }
+    
+    /// Getter for server name
+    pub fn server_name(&self) -> &str {
+        self.name.as_slice()
+    }
+    
+    /// Returns the member count
+    pub fn member_count(&self) -> uint {
+        self.members.len()
+    }
+    
+    /// Adds a member to the channel
+    pub fn add_member(&mut self, member: Member) -> bool {
+        if self.member_with_id(member.id()).is_some() {
+            false // member already in channel
+        } else {
+            self.nicknames.insert(member.id(), member.nick().to_string());
+            self.members.insert(member.nick().to_string(), member);
+            true
+        }
+    }
+    
     /// Starts listening for events in a separate thread
     pub fn listen(self) -> Sender<ChannelEvent> {
         let (tx, rx) = channel();
@@ -323,24 +350,6 @@ impl Channel {
         tx
     }
     
-    fn dispatch(&mut self, event: ChannelEvent) {
-        match event {
-            Message(command, client_id, message) => {
-                match command {
-                    PRIVMSG => self.handle_privmsg(client_id, message),
-                    MODE => self.handle_mode(client_id, message),
-                }
-            },
-            Join(member, password) => 
-                self.handle_join(member, password),
-            Part(proxy, msg) => self.handle_part(proxy, msg),
-            Quit(proxy, msg) => self.handle_quit(proxy, msg),
-            Who(proxy, msg) => self.handle_who(proxy, msg),
-            Reply( _, proxy) => 
-                self.handle_names(&proxy)
-        }
-    }
-    
     pub fn send_response(&self, client: &ClientProxy, command: cmd::ResponseCode, 
                          params: &[&str]) {
         client.send_response(
@@ -350,7 +359,7 @@ impl Channel {
         )
     }
     
-    fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
+    pub fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
         let nick = self.nicknames.find(&client_id).clone();
         match nick {
             Some(nick) => self.members.find(nick),
@@ -358,7 +367,7 @@ impl Channel {
         }
     }
     
-    fn mut_member_with_id(&mut self, client_id: ClientId) -> Option<&mut Member> {
+    pub fn mut_member_with_id(&mut self, client_id: ClientId) -> Option<&mut Member> {
         let nick = self.nicknames.find(&client_id).clone();
         match nick {
             Some(nick) => self.members.find_mut(nick),
@@ -366,10 +375,30 @@ impl Channel {
         }
     }
     
+    /// Broadcasts a message to all members
     #[inline]
-    fn broadcast(&self, message: RawMessage) {
+    pub fn broadcast(&self, message: RawMessage) {
         for (_, member) in self.members.iter() {
             member.send_msg(message.clone())
+        }
+    }
+    
+    /// Message dispatcher
+    fn dispatch(&mut self, event: ChannelEvent) {
+        match event {
+            Handle(handler) => handler(self),
+            HandleMut(handler) => handler(self),
+            Message(command, client_id, message) => {
+                match command {
+                    PRIVMSG => self.handle_privmsg(client_id, message),
+                    MODE => self.handle_mode(client_id, message),
+                }
+            },
+            Part(proxy, msg) => self.handle_part(proxy, msg),
+            Quit(proxy, msg) => self.handle_quit(proxy, msg),
+            Who(proxy, msg) => self.handle_who(proxy, msg),
+            Reply( _, proxy) => 
+                self.handle_names(&proxy)
         }
     }
     
@@ -385,48 +414,6 @@ impl Channel {
         }
         self.send_response(proxy, cmd::RPL_ENDOFNAMES, 
             [self.name.as_slice(), "End of /NAMES list"])
-    }
-    
-    /// Handles the join attempt of a user
-    pub fn handle_join(&mut self, mut member: Member, password: Option<Vec<u8>>) {
-        if self.password.len() != 0 {
-            if !match password { Some(password) => password == self.password,
-                                 None => false } {
-                member.send_response(cmd::ERR_BADCHANNELKEY,
-                    [self.name.as_slice(),
-                    "Password is wrong"]
-                );
-                return
-            }
-        }
-        if self.member_with_id(member.id()).is_some() {
-            //member already in channel
-            return
-        }
-        let msg = RawMessage::new(
-            cmd::JOIN, 
-            &[self.name.as_slice()],
-            Some(member.nick())
-        );
-        if self.members.len() == 0 { // first user
-            member.promote(ChannelCreator);
-            member.promote(OperatorPrivilege);
-        }
-        let id = member.id().clone();
-        self.nicknames.insert(member.id(), member.nick().to_string());
-        self.members.insert(member.nick().to_string(), member);
-        self.broadcast(msg);
-        let member = self.member_with_id(id).unwrap();
-        member.send_response(cmd::RPL_NOTOPIC, 
-            [self.name.as_slice(), "No topic set."]);
-        self.handle_names(member.proxy());
-        if self.members.len() == 1 { // first user
-            let msg = RawMessage::new(cmd::MODE, [
-                self.name.as_slice(),
-                format!("+{}", member.decoration()).as_slice(), 
-                member.nick()], Some(self.server_name.as_slice()));
-            self.broadcast(msg)
-        }
     }
     
     /// Handles the part attempt of a user

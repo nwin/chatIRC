@@ -7,7 +7,9 @@ use std::cell::{RefCell};
 use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
-use msg::{RawMessage, Message};
+use msg::{RawMessage};
+use msg;
+
 use cmd::{Command, REPLY, ResponseCode};
 
 use server::{Event, ClientConnected, MessageReceived};
@@ -148,8 +150,8 @@ impl Client {
                 .trim_right().as_bytes()) {
                     Ok(raw) => {
                         debug!("received message {}", raw.to_string());
-                        match Message::from_raw_message(raw) {
-                            Ok(message) => tx.send(MessageReceived(id, message)),
+                        match msg::get_handler(raw) {
+                            Ok(handler) => tx.send(MessageReceived(id, handler)),
                             Err(err_msg) => {
                                 // TODO inject proper receiver
                                 err_tx.send(err_msg)

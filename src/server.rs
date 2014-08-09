@@ -6,26 +6,26 @@ use std::io::net;
 use std::io;
 use std::collections::hashmap::{HashMap};
 
-use channel::{Member, Channel, ChannelEvent};
+use channel::{ChannelEvent};
 use channel;
 use client::{SharedClient, Client, ClientId};
 use msg::util::{ChannelName, NickName};
 use msg::util;
-use msg::{Message};
+use msg::{MessageHandler};
 use msg;
 
 use cmd::*;
 
 
 /// Forwards the message to a channel
-struct ChannelProxy {
+pub struct ChannelProxy {
     name: String,
     tx: Sender<ChannelEvent>,
     server_tx: Sender<Event>
 }
 
 impl ChannelProxy {
-    fn new(name: String,
+    pub fn new(name: String,
            tx: Sender<ChannelEvent>, 
            server_tx: Sender<Event>) -> ChannelProxy {
         ChannelProxy {
@@ -34,7 +34,7 @@ impl ChannelProxy {
             server_tx: server_tx
         }
     }
-    fn send(&self, event: ChannelEvent) {
+    pub fn send(&self, event: ChannelEvent) {
         match self.tx.send_opt(event) {
             Ok(_) => {},
             Err(_) => {
@@ -44,7 +44,7 @@ impl ChannelProxy {
     }
 }
 
-pub struct IrcServer {
+pub struct Server {
     host: String,
     ip: String,
     port: u16, 
@@ -52,13 +52,13 @@ pub struct IrcServer {
     // TODO put unregisterd clients in a staging Map
     clients: HashMap<ClientId, SharedClient>,
     nicknames: HashMap<String, SharedClient>,
-    channels: HashMap<String, ChannelProxy>
+    pub channels: HashMap<String, ChannelProxy>
 }
 
 /// Enumeration of the events the server can receive
 pub enum Event {
     /// Message received from a client
-    MessageReceived(ClientId, Message),
+    MessageReceived(ClientId, Box<MessageHandler + Send>),
     /// Connection to a client established
     ClientConnected(Client),
     /// The task of Channel(name) failed
@@ -66,15 +66,15 @@ pub enum Event {
 }
 
 /// Convenience function to run the server
-pub fn run_server(host: &str) -> IoResult<IrcServer> {
-    let server = try!(IrcServer::new(host));
+pub fn run_server(host: &str) -> IoResult<Server> {
+    let server = try!(Server::new(host));
     server.serve_forever()
 }
 
 /// Irc server
-impl IrcServer {
+impl Server {
     /// Creates a new IRC server instance.
-    pub fn new(host: &str) -> IoResult<IrcServer> {
+    pub fn new(host: &str) -> IoResult<Server> {
         let addresses = try!(net::get_host_addresses(host));
         debug!("{}", addresses)
         let ip = match addresses.as_slice().get(0) {
@@ -85,7 +85,7 @@ impl IrcServer {
                 detail: None
             })
         };
-        Ok(IrcServer {
+        Ok(Server {
             host: host.to_string(),
             ip: format!("{}", ip),
             port: 6667,
@@ -97,18 +97,18 @@ impl IrcServer {
     }
     
     /// Starts the main loop and listens on the specified host and port.
-    pub fn serve_forever(mut self) -> IoResult<IrcServer> {
+    pub fn serve_forever(mut self) -> IoResult<Server> {
         // todo change this to a more general event dispatching loop
         let message_rx = try!(self.start_listening());
         for event in message_rx.iter() {
             match event {
-                MessageReceived(client_id, message) => {
+                MessageReceived(client_id, handler) => {
                     let client = match self.clients.find(&client_id) {
                         Some(client) => Some(client.clone()),
                         None => None
                     };
                     match client {
-                        Some(client) => self.dispatch(client, message),
+                        Some(client) => handler.invoke(&mut self, client),
                         None => error!(
                             "Client {} not found when sending message.",
                             client_id
@@ -159,33 +159,44 @@ impl IrcServer {
     /// to keep the processing time of each message as short as possible to
     /// archive bester server performance. Should spawn new threads if the processing
     /// take more time.
-    fn dispatch(&mut self, origin: SharedClient, message: Message) {
-        // TODO: wrap this in a proc?
-        match message {
-            msg::Priv(msg) => self.handle_privmsg(origin, msg),
-            msg::Mode(msg) => self.handle_mode(origin, msg),
-            // ignoring PONG, this is basically handled
-            // by the socket timeout
-            msg::Pong(_) => {},
-            msg::Join(msg) => self.handle_join(origin, msg),
-            msg::Part(msg) => self.handle_part(origin, msg),
-            msg::Who(msg) => self.handle_who(origin, msg),
-            msg::Names(msg) => self.handle_names(origin, msg),
-            msg::Nick(msg) => self.handle_nick(origin, msg),
-            msg::User(msg) => self.handle_user(origin, msg),
-            msg::Ping(_) => {}, // ignoring this message, I am a server
-            msg::Quit(msg) => self.handle_quit(origin, msg),
-            msg::Reply(_) => {}, // should not come from a client, ignore
-            msg::Unknown(cmd) => 
-                error!(
-                    "Handling of message {} not implemented yet.",
-                    String::from_utf8_lossy(cmd.as_slice()))
-        }
+    //fn dispatch(&mut self, origin: SharedClient, message: Message) {
+    //    // TODO: wrap this in a proc?
+    //    match message {
+    //        msg::Priv(msg) => self.handle_privmsg(origin, msg),
+    //        msg::Mode(msg) => self.handle_mode(origin, msg),
+    //        // ignoring PONG, this is basically handled
+    //        // by the socket timeout
+    //        msg::Pong(_) => {},
+    //        msg::Join(msg) => self.handle_join(origin, msg),
+    //        msg::Part(msg) => self.handle_part(origin, msg),
+    //        msg::Who(msg) => self.handle_who(origin, msg),
+    //        msg::Names(msg) => self.handle_names(origin, msg),
+    //        msg::Nick(msg) => self.handle_nick(origin, msg),
+    //        msg::User(msg) => self.handle_user(origin, msg),
+    //        msg::Ping(_) => {}, // ignoring this message, I am a server
+    //        msg::Quit(msg) => self.handle_quit(origin, msg),
+    //        msg::Reply(_) => {}, // should not come from a client, ignore
+    //        msg::Unknown(cmd) => 
+    //            error!(
+    //                "Handling of message {} not implemented yet.",
+    //                String::from_utf8_lossy(cmd.as_slice()))
+    //    }
+    //}
+    
+    /// Getter for hostname
+    pub fn host(&self) -> &str {
+        self.host.as_slice()
     }
     
+    /// Getter for hostname
+    pub fn tx(&self) -> Option<Sender<Event>> {
+        self.tx.clone()
+    }
+    
+    
     /// Sends a welcome message to a newly registered client
-    fn send_welcome_msg(&self, client: SharedClient) {
-        client.borrow_mut().send_response(RPL_WELCOME, None, None)
+    fn send_welcome_msg(&self, client: &SharedClient) {
+        client.borrow().send_response(RPL_WELCOME, None, None)
     }
 
     fn handle_privmsg(&mut self, origin: SharedClient, mut message: msg::PrivMessage) {
@@ -209,22 +220,6 @@ impl IrcServer {
                 },
                 _ => {}
             }
-        }
-    }
-    
-    /// Handles the nick command
-    ///    Command: NICK
-    /// Parameters: <nickname> [ <hopcount> ]
-    fn handle_nick(&self, origin: SharedClient, message: msg::NickMessage) {
-        let mut client = origin.borrow_mut();
-        if self.nicknames.contains_key(&message.nick) {
-            client.send_response(
-                ERR_NICKNAMEINUSE,
-                Some(message.nick.as_slice()), 
-                Some("nickname in use")
-            );
-        } else {
-            client.nickname = message.nick;
         }
     }
     
@@ -262,13 +257,36 @@ impl IrcServer {
         }
     }
     
+    /// Handles the nick command
+    ///    Command: NICK
+    /// Parameters: <nickname> [ <hopcount> ]
+    fn handle_nick(&mut self, origin: SharedClient, message: msg::NickMessage) {
+        if self.nicknames.contains_key(&message.nick) {
+            origin.borrow().send_response(
+                ERR_NICKNAMEINUSE,
+                Some(message.nick.as_slice()), 
+                Some("nickname in use")
+            );
+        } else {
+            origin.borrow_mut().nickname = message.nick;
+        }
+        if origin.borrow().username.len() > 0 && !self.nicknames.contains_key(&origin.borrow().nickname){
+            // user message already send but not yet registered
+            self.try_register(&origin)
+        }
+    }
+    
     /// Handles the USER command
     fn handle_user(&mut self, origin: SharedClient, message: msg::UserMessage) {
         origin.borrow_mut().username = message.username;
         origin.borrow_mut().realname = message.realname;
-        let nick = origin.borrow_mut().nickname.clone();
-        if self.nicknames.contains_key(&nick) {
-            origin.borrow_mut().send_response(ERR_ALREADYREGISTRED, None,
+        self.try_register(&origin)
+    }
+    
+    fn try_register(&mut self, origin: &SharedClient) {
+        let nick = origin.borrow().nickname.clone();
+        if nick.len() > 0 && self.nicknames.contains_key(&nick) {
+            origin.borrow().send_response(ERR_ALREADYREGISTRED, None,
                 Some("somebody already registered with the same nickname")
             );
         } else {
@@ -308,36 +326,6 @@ impl IrcServer {
                 }
             },
             _ => error!("user modes not supported yet")
-        }
-    }
-    
-    /// Handles the JOIN command
-    ///    Command: JOIN
-    /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
-    fn handle_join(&mut self, origin: SharedClient, message: msg::JoinMessage) {
-        let host = self.host.clone();
-        for (channel, password) in message.targets.move_iter()
-        .zip(message.passwords.move_iter()) {
-            let tx = self.tx.clone().unwrap();
-            self.channels.find_or_insert_with(channel.to_string(), |key| {
-                ChannelProxy::new(
-                    key.clone(),
-                    Channel::new(key.clone(), host.clone()).listen(),
-                    // this should exist by now
-                    tx.clone()
-                )
-            }).send(
-                channel::Join(
-                    Member::new(
-                        origin.borrow().id(),
-                        origin.borrow().realname.clone(),
-                        util::HostMask::new(origin.borrow().real_mask()),
-                        self.host.clone(),
-                        origin.borrow().proxy()
-                    ),
-                    password
-                )
-            )
         }
     }
     

@@ -66,7 +66,7 @@ impl RawMessage {
         let msg_params = params.iter().enumerate().map( |(i, &param)| {
             let bytes = param;
             raw_message.push(b' ');
-            let offset = if i + 1 == num_params {
+            let offset = if i + 1 == num_params {// && bytes.iter().position(|&v| v == b' ').is_some() {
                 raw_message.push(b':');
                 1
             } else { 0 };

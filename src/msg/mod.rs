@@ -18,7 +18,10 @@ pub use self::validate::{Names, NamesMessage};
 pub use self::validate::{Reply};
 pub use self::validate::{Unknown};
 
+pub use self::handlers::{MessageHandler, get_handler};
 
 pub mod validate;
 pub mod raw;
 pub mod util;
+#[allow(unused_imports)]
+pub mod handlers;
