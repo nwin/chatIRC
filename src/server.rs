@@ -278,25 +278,4 @@ impl Server {
             channel.send(channel::Quit(proxy.clone(), message.clone()))
         }
     }
-    
-    /// Handles the MODE command
-    fn handle_mode(&mut self, origin: SharedClient, message: msg::ModeMessage) {
-        match message.receiver {
-            ChannelName(ref name) => {
-                match self.channels.find_mut(&name.to_string()) {
-                    Some(channel) => channel.send(channel::Message(
-                            channel::MODE,
-                            origin.borrow().id(), 
-                            message.raw
-                    )),
-                    None => origin
-                        .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                            Some(name.as_slice()), Some("No such channel"))
-                        
-                        
-                }
-            },
-            _ => error!("user modes not supported yet")
-        }
-    }
 }

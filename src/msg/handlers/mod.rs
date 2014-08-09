@@ -10,6 +10,7 @@ use super::util;
 
 mod join;
 mod part;
+mod mode;
 
 macro_rules! handle {
     {$(
@@ -28,6 +29,7 @@ pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Ra
 }}
 
 handle!{
+    MODE with self::mode::Mode;
     JOIN with self::join::Join;
     PART with self::part::Part;
 }

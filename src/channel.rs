@@ -83,7 +83,7 @@ impl ChannelMode {
 /// ```
 /// 
 /// 
-fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
+pub fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
     let mut current = slice;
     loop {
         // Bug: no +/- asking for modes
@@ -265,7 +265,6 @@ pub type Flags = HashSet<ChannelMode>;
 /// Enumeration of command a channel can handle
 pub enum ChannelCommand {
     PRIVMSG,
-    MODE
 }
 pub enum ChannelResponse {
     NAMES
@@ -324,6 +323,51 @@ impl Channel {
     /// Returns the member count
     pub fn member_count(&self) -> uint {
         self.members.len()
+    }
+    
+    /// Adds a flag to the channel
+    pub fn add_flag(&mut self, flag: ChannelMode) -> bool {
+        self.flags.insert(flag)
+    }
+    
+    /// Removes a flag from the channel
+    pub fn remove_flag(&mut self, flag: &ChannelMode) -> bool {
+        self.flags.remove(flag)
+    }
+    
+    /// Adds a ban mask to the channel
+    pub fn add_ban_mask(&mut self, mask: HostMask) -> bool {
+        self.ban_masks.insert(mask)
+    }
+    
+    /// Removes a ban mask from the channel
+    pub fn remove_ban_mask(&mut self, mask: &HostMask) -> bool {
+        self.ban_masks.remove(mask)
+    }
+    
+    /// Adds a ban mask to the channel
+    pub fn add_except_mask(&mut self, mask: HostMask) -> bool {
+        self.except_masks.insert(mask)
+    }
+    
+    /// Removes a ban mask from the channel
+    pub fn remove_except_mask(&mut self, mask: &HostMask) -> bool {
+        self.except_masks.remove(mask)
+    }
+    
+    /// Adds a ban mask to the channel
+    pub fn add_invite_mask(&mut self, mask: HostMask) -> bool {
+        self.invite_masks.insert(mask)
+    }
+    
+    /// Removes a ban mask from the channel
+    pub fn remove_invite_mask(&mut self, mask: &HostMask) -> bool {
+        self.invite_masks.remove(mask)
+    }
+    
+    /// Removes a flag to the channel
+    pub fn flags(&self) -> String {
+        self.flags.iter().map( |c| *c as u8 as char).collect() 
     }
     
     /// Adds a member to the channel
@@ -385,6 +429,10 @@ impl Channel {
         }
     }
     
+    pub fn mut_member_with_nick(&mut self, nick: &String) -> Option<&mut Member> {
+        self.members.find_mut(nick)
+    }
+    
     /// Broadcasts a message to all members
     #[inline]
     pub fn broadcast(&self, message: RawMessage) {
@@ -401,7 +449,6 @@ impl Channel {
             Message(command, client_id, message) => {
                 match command {
                     PRIVMSG => self.handle_privmsg(client_id, message),
-                    MODE => self.handle_mode(client_id, message),
                 }
             },
             Quit(proxy, msg) => self.handle_quit(proxy, msg),
@@ -493,85 +540,6 @@ impl Channel {
             },
             None => self.send_response(&client, cmd::ERR_NOTONCHANNEL,
                 [self.name.as_slice(), "You are not on this channel."]
-            )
-        }
-    }
-    
-    /// Handles the channel mode message
-    pub fn handle_mode(&mut self, client_id: ClientId, message: RawMessage) {
-        // TODO broadcast changes
-        let is_op = { match self.member_with_id(client_id) {
-            Some(member) => member.is_op(),
-            None => false
-        }};
-        let params = message.params();
-        if params.len() > 1 {
-            if !is_op { return } // TODO: error message
-            modes_do(params.slice_from(1), | set, mode, parameter | {
-                match mode {
-                    AnonChannel | InviteOnly | Moderated | MemberOnly 
-                    | Quiet | Private | Secret | ReOpFlag | TopicProtect => {
-                        if set {
-                            self.flags.insert(mode);
-                        } else {
-                            self.flags.remove(&mode);
-                        }
-                        
-                    },
-                    OperatorPrivilege | VoicePrivilege => {
-                        match parameter { Some(name) => {
-                                match self.members
-                                .find_mut(&name.to_string()) {
-                                    Some(member) => if set {
-                                        member.promote(mode)
-                                    } else {
-                                        member.demote(mode)
-                                    }, None => {}
-                                }
-                            }, None => {}
-                        }
-                    },
-                    ChannelKey => {
-                        match parameter { Some(password) => {
-                                self.password = password.to_vec()
-                            }, None => {}
-                        }
-                    },
-                    UserLimit => {
-                        error!("UserLimit mode not implemented yet")
-                    },
-                    BanMask | ExceptionMask | InvitationMask => match parameter { 
-                        Some(mask) => {
-                            let host_mask = HostMask::new(
-                                String::from_utf8_lossy(mask).to_string()
-                            );
-                            match mode {
-                                BanMask =>
-                                    {let _ = self.ban_masks.insert(host_mask);},
-                                ExceptionMask =>
-                                    {let _ = self.except_masks.insert(host_mask);},
-                                InvitationMask =>
-                                    {let _ = self.invite_masks.insert(host_mask);},
-                                _ => unreachable!()
-                            }
-                        }, None => {}
-                    },
-                    ChannelCreator => {
-                        // This is can't be set after channel creation 
-                    },
-                }
-            });
-        } else {
-            let member = match self.member_with_id(client_id) {
-                Some(member) => member,
-                None => return // todo error message
-            };
-            member.send_response(cmd::RPL_CHANNELMODEIS,
-                [self.name.as_slice(), 
-                 ("+".to_string() + self.flags.iter().map( |c| 
-                     *c as u8 as char).collect::<String>() 
-                 ).as_slice()
-                ]
             )
         }
     }
