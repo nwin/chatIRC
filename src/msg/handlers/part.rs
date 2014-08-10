@@ -102,8 +102,7 @@ impl super::MessageHandler for Quit {
         })
     }
     fn invoke(self, server: &mut Server, origin: SharedClient) {
-        let mut client = origin.borrow_mut();
-        client.close_connection();
+        origin.borrow_mut().close_connection();
         server.remove_client(&origin);
         for (_, channel) in server.channels.iter() {
             // TODO make this more performant, cache channels in user?
