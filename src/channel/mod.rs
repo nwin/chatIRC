@@ -12,7 +12,7 @@ pub use self::member::{Member};
 pub use self::util::{Flags, ChannelMode, modes_do};
 
 pub mod util;
-pub mod member;
+mod member;
 
 
 /// Forwards the message to a channel
