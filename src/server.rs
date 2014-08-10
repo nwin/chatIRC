@@ -69,8 +69,7 @@ impl Server {
     /// Starts the main loop and listens on the specified host and port.
     pub fn serve_forever(mut self) -> IoResult<Server> {
         // todo change this to a more general event dispatching loop
-        let message_rx = try!(self.start_listening());
-        for event in message_rx.iter() {
+        for event in try!(self.start_listening()).iter() {
             match event {
                 MessageReceived(client_id, handler) => {
                     let client = match self.clients.find(&client_id) {
@@ -85,11 +84,17 @@ impl Server {
                         )
                     }
                 },
-                ClientConnected(client) => { 
+                ClientConnected(mut client) => { 
+                    if self.clients.find(&client.id()).is_some() {
+                        // Duplicate client id.
+                        (client).close()
+                    }
                     let client = client.as_shared();
                     self.clients.insert(client.borrow().id(), client); 
                 }
                 ChannelLost(name) => {
+                    // TODO kick all users from this channel
+                    // can be implemented when channel names are cached on all users
                     self.channels.remove(&name);
                 }
             }
@@ -111,11 +116,8 @@ impl Server {
                     Err(err) => { error!("{}", err) }
                     Ok(stream) => {
                         match Client::listen(host.clone(), stream, tx.clone()) {
-                            Ok(()) => {
-                            },
-                            Err(err) => {
-                                error!("{}", err)
-                            }
+                            Ok(()) => {},
+                            Err(err) => error!("{}", err)
                         }
                     }
                 }

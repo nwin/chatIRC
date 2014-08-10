@@ -24,7 +24,7 @@ pub struct ClientId {
 
 impl ClientId {
     /// The client id is losely inspired by SILC but the silc
-    /// method of using the nickname is not applicable to IRC
+    /// method of also using the nickname for this is not applicable to IRC
     fn new(stream: &mut TcpStream) -> ClientId {
         ClientId { 
             id: [
@@ -223,7 +223,7 @@ impl Client {
     }
     
     /// Closes the connection to the client
-    pub fn close_connection(&mut self) {
+    pub fn close(&mut self) {
         let _ = self.stream.close_read();
         let _ = self.stream.close_write();
     }
