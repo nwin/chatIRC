@@ -110,14 +110,9 @@ impl super::MessageHandler for Join {
                 host.clone(),
                 origin.borrow().proxy()
             );
-            let tx = server.tx().unwrap();
-            server.channels.find_or_insert_with(channel.to_string(), |key| {
-                channel::Proxy::new(
-                    key.clone(),
-                    channel::Channel::new(key.clone(), host.clone()).listen(),
-                    // this should exist by now
-                    tx.clone()
-                )
+            let tx = server.tx().unwrap(); // save to unwrap, this should exist by now
+            server.channels.find_or_insert_with(channel.to_string(), |name| {
+                channel::Channel::new(name.clone(), host.clone()).listen(tx.clone())
             }).send(
                 channel::HandleMut(proc(channel) {
                     Join::handle_join(channel, member, password)

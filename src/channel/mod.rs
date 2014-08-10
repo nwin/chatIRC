@@ -23,7 +23,7 @@ pub struct Proxy {
 }
 
 impl Proxy {
-    pub fn new(name: String,
+    fn new(name: String,
            tx: Sender<Event>, 
            server_tx: Sender<server::Event>) -> Proxy {
         Proxy {
@@ -80,15 +80,20 @@ impl Channel {
     }
     
     /// Starts listening for events in a separate thread
-    pub fn listen(self) -> Sender<Event> {
+    pub fn listen(self, server_tx: Sender<server::Event>) -> Proxy {
         let (tx, rx) = channel();
+        let name = self.name.clone();
         spawn(proc() {
             let mut this = self;
             for event in rx.iter() {
                 this.dispatch(event)
             }
         });
-        tx
+        Proxy {
+            name: name,
+            tx: tx,
+            server_tx: server_tx
+        }
     }
 
     /// Message dispatcher
