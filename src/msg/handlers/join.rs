@@ -1,6 +1,6 @@
 use cmd;
 use channel;
-use channel::util::{ChannelCreator, OperatorPrivilege};
+use channel::util::{ChannelCreator, OperatorPrivilege, TopicProtect, MemberOnly};
 use msg::RawMessage;
 use msg::util;
 
@@ -114,7 +114,10 @@ impl super::MessageHandler for Join {
             );
             let tx = server.tx().unwrap(); // save to unwrap, this should exist by now
             server.channels.find_or_insert_with(channel.to_string(), |name| {
-                channel::Channel::new(name.clone(), host.clone()).listen(tx.clone())
+                let mut channel = channel::Channel::new(name.clone(), host.clone());
+                channel.add_flag(TopicProtect);
+                channel.add_flag(MemberOnly);
+                channel.listen(tx.clone())
             }).send(
                 channel::HandleMut(proc(channel) {
                     Join::handle_join(channel, member, password)

@@ -43,7 +43,7 @@ impl Server {
     /// Creates a new IRC server instance.
     pub fn new(host: &str) -> IoResult<Server> {
         let addresses = try!(net::get_host_addresses(host));
-        debug!("{}", addresses)
+        debug!("addresses found: {}", addresses)
         // Listen only on ipv4 for now…
         let ip = match addresses.iter().filter(
             |&v| match v { &net::ip::Ipv4Addr(_, _, _, _) => true, _ => false }
