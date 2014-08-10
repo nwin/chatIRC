@@ -78,7 +78,7 @@ impl Server {
             Some(ip) => ip,
             None => return Err(io::IoError {
                 kind: io::OtherIoError,
-                desc: "cannnot resolve ip",
+                desc: "cannot get host address",
                 detail: None
             })
         };
