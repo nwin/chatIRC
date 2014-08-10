@@ -175,61 +175,27 @@ impl Server {
         client.borrow().send_response(RPL_WELCOME, None, None)
     }
 
-    fn handle_privmsg(&mut self, origin: SharedClient, mut message: msg::PrivMessage) {
-        message.raw.set_prefix(origin.borrow().nickname.as_slice());
-        for receiver in message.receiver.move_iter() {
-            match receiver {
-                ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
-                    Some(channel) => 
-                        channel.send(channel::Message(
-                            channel::PRIVMSG,
-                            origin.borrow().id(),
-                            message.raw.clone(),
-                        )),
-                    None => {}
-                },
-                NickName(nick) => match self.registered.find_mut(&nick.to_string()) {
-                    Some(client) => {
-                        client.borrow_mut().send_msg(message.raw.clone());
-                    },
-                    None => {}
-                },
-                _ => {}
-            }
-        }
-    }
-    
-    /// Handles the NAMES command
-    fn handle_names(&mut self, origin: SharedClient, message: msg::NamesMessage) {
-        for &recv in message.receivers.iter() {
-            match recv {
-                ChannelName(ref name) => {
-                    match self.channels.find_mut(&name.to_string()) {
-                        Some(channel) => {
-                            channel.send(channel::Reply(
-                                channel::NAMES,
-                                origin.borrow().proxy()
-                            ))
-                        } 
-                        None => origin
-                            .borrow_mut().send_response(ERR_NOSUCHCHANNEL,
-                                Some(name.as_slice()), Some("No such channel"))
-                    }
-                },
-                _ => {}
-            }
-            
-        }
-    }
-    
-    /// Handles the NAMES command
-    fn handle_who(&mut self, origin: SharedClient, message: msg::WhoMessage) {
-        match self.channels.find(&message.mask) {
-            Some(channel) => channel.send(channel::Who(
-                origin.borrow().proxy(),
-                message,
-            )),
-            None => {} // handle later
-        }
-    }
+    //fn handle_privmsg(&mut self, origin: SharedClient, mut message: msg::PrivMessage) {
+    //    message.raw.set_prefix(origin.borrow().nickname.as_slice());
+    //    for receiver in message.receiver.move_iter() {
+    //        match receiver {
+    //            ChannelName(name) => match self.channels.find_mut(&name.to_string()) {
+    //                Some(channel) => 
+    //                    channel.send(channel::Message(
+    //                        channel::PRIVMSG,
+    //                        origin.borrow().id(),
+    //                        message.raw.clone(),
+    //                    )),
+    //                None => {}
+    //            },
+    //            NickName(nick) => match self.registered.find_mut(&nick.to_string()) {
+    //                Some(client) => {
+    //                    client.borrow_mut().send_msg(message.raw.clone());
+    //                },
+    //                None => {}
+    //            },
+    //            _ => {}
+    //        }
+    //    }
+    //}
 }

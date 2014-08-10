@@ -46,8 +46,10 @@ impl Join {
         this.broadcast(msg);
         let member = this.member_with_id(id).unwrap();
         member.send_response(cmd::RPL_NOTOPIC, 
-            [this.name(), "No topic set."]);
-        this.handle_names(member.proxy());
+            [this.name(), "No topic set."]
+        );
+        super::lists::Names::handle_names(this, member.proxy());
+        //this.handle_names(member.proxy());
         if this.member_count() == 1 { // first user
             let msg = RawMessage::new(cmd::MODE, [
                 this.name(),

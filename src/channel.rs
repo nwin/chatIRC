@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use std::collections::hashmap;
 
 use client::{ClientId, ClientProxy};
 use msg::{RawMessage};
 use msg::util::{HostMask};
-use msg;
 
 use cmd;
 
@@ -262,19 +262,8 @@ impl Eq for Member {}
 /// Enumertion of channel modes / member flags
 pub type Flags = HashSet<ChannelMode>;
 
-/// Enumeration of command a channel can handle
-pub enum ChannelCommand {
-    PRIVMSG,
-}
-pub enum ChannelResponse {
-    NAMES
-}
-
 /// Enumeration of events a channel can receive
 pub enum ChannelEvent {
-    Message(ChannelCommand, ClientId, RawMessage), // This will be removed later
-    Who(ClientProxy, msg::WhoMessage),
-    Reply(ChannelResponse, ClientProxy),
     Handle(proc(&Channel): Send),
     HandleMut(proc(&mut Channel): Send),
 }
@@ -309,6 +298,31 @@ impl Channel {
         }
     }
     
+    /// Starts listening for events in a separate thread
+    pub fn listen(self) -> Sender<ChannelEvent> {
+        let (tx, rx) = channel();
+        spawn(proc() {
+            let mut this = self;
+            for event in rx.iter() {
+                this.dispatch(event)
+            }
+        });
+        tx
+    }
+
+    /// Message dispatcher
+    fn dispatch(&mut self, event: ChannelEvent) {
+        match event {
+            Handle(handler) => handler(self),
+            HandleMut(handler) => handler(self),
+            //Message(command, client_id, message) => {
+            //    match command {
+            //        PRIVMSG => self.handle_privmsg(client_id, message),
+            //    }
+            //}
+        }
+    }
+    
     /// Getter for channel name
     pub fn name(&self) -> &str {
         self.name.as_slice()
@@ -324,14 +338,29 @@ impl Channel {
         self.members.len()
     }
     
+    /// Returns a view into the channel members
+    pub fn members<'a>(&'a self) -> hashmap::Values<'a, String, Member> {
+        self.members.values()
+    }
+    
     /// Adds a flag to the channel
     pub fn add_flag(&mut self, flag: ChannelMode) -> bool {
         self.flags.insert(flag)
     }
     
     /// Removes a flag from the channel
-    pub fn remove_flag(&mut self, flag: &ChannelMode) -> bool {
-        self.flags.remove(flag)
+    pub fn remove_flag(&mut self, flag: ChannelMode) -> bool {
+        self.flags.remove(&flag)
+    }
+    
+    /// Checks if the channel has flag `flag`
+    pub fn has_flag(&self, flag: ChannelMode) -> bool {
+        self.flags.contains(&flag)
+    }
+    
+    /// Channel flags as a string
+    pub fn flags(&self) -> String {
+        self.flags.iter().map( |c| *c as u8 as char).collect() 
     }
     
     /// Adds a ban mask to the channel
@@ -340,8 +369,8 @@ impl Channel {
     }
     
     /// Removes a ban mask from the channel
-    pub fn remove_ban_mask(&mut self, mask: &HostMask) -> bool {
-        self.ban_masks.remove(mask)
+    pub fn remove_ban_mask(&mut self, mask: HostMask) -> bool {
+        self.ban_masks.remove(&mask)
     }
     
     /// Adds a ban mask to the channel
@@ -350,8 +379,8 @@ impl Channel {
     }
     
     /// Removes a ban mask from the channel
-    pub fn remove_except_mask(&mut self, mask: &HostMask) -> bool {
-        self.except_masks.remove(mask)
+    pub fn remove_except_mask(&mut self, mask: HostMask) -> bool {
+        self.except_masks.remove(&mask)
     }
     
     /// Adds a ban mask to the channel
@@ -360,13 +389,8 @@ impl Channel {
     }
     
     /// Removes a ban mask from the channel
-    pub fn remove_invite_mask(&mut self, mask: &HostMask) -> bool {
-        self.invite_masks.remove(mask)
-    }
-    
-    /// Removes a flag to the channel
-    pub fn flags(&self) -> String {
-        self.flags.iter().map( |c| *c as u8 as char).collect() 
+    pub fn remove_invite_mask(&mut self, mask: HostMask) -> bool {
+        self.invite_masks.remove(&mask)
     }
     
     /// Adds a member to the channel
@@ -389,18 +413,6 @@ impl Channel {
         self.nicknames.remove(id);
         self.members.remove(&nick);
         true
-    }
-    
-    /// Starts listening for events in a separate thread
-    pub fn listen(self) -> Sender<ChannelEvent> {
-        let (tx, rx) = channel();
-        spawn(proc() {
-            let mut this = self;
-            for event in rx.iter() {
-                this.dispatch(event)
-            }
-        });
-        tx
     }
     
     pub fn send_response(&self, client: &ClientProxy, command: cmd::ResponseCode, 
@@ -439,83 +451,6 @@ impl Channel {
             member.send_msg(message.clone())
         }
     }
-    
-    /// Message dispatcher
-    fn dispatch(&mut self, event: ChannelEvent) {
-        match event {
-            Handle(handler) => handler(self),
-            HandleMut(handler) => handler(self),
-            Message(command, client_id, message) => {
-                match command {
-                    PRIVMSG => self.handle_privmsg(client_id, message),
-                }
-            },
-            Who(proxy, msg) => self.handle_who(proxy, msg),
-            Reply( _, proxy) => 
-                self.handle_names(&proxy)
-        }
-    }
-    
-    /// Sends the list of users to the client
-    pub fn handle_names(&self, proxy: &ClientProxy) {
-        // TODO check if channel is visible to user…
-        // TODO replace with generic list sending function
-        for (_, member) in self.members.iter() {
-            self.send_response(proxy, cmd::RPL_NAMREPLY, [
-                String::from_str("= ").append(self.name.as_slice()).as_slice(),
-                member.decorated_nick()   
-            ])
-        }
-        self.send_response(proxy, cmd::RPL_ENDOFNAMES, 
-            [self.name.as_slice(), "End of /NAMES list"])
-    }
-    
-    /// Handles the who message
-    /// The reply consists of two parts:
-    /// 
-    /// ```
-    /// 352    RPL_WHOREPLY
-    ///        "<channel> <user> <host> <server> <nick>
-    ///        ( "H" / "G" > ["*"] [ ( "@" / "+" ) ]
-    ///        :<hopcount> <real name>"
-    /// 
-    /// 315    RPL_ENDOFWHO
-    ///        "<name> :End of WHO list"
-    /// ```
-    /// 
-    /// Unfortunately the RFC 2812 does not specify what H, G, *, @ or + mean.
-    /// @/+ is op/voice.
-    /// * is maybe irc op
-    /// H/G means here/gone in terms of the away status
-    /// 
-    pub fn handle_who(&mut self, client: ClientProxy, message: msg::WhoMessage) {
-        if (self.flags.contains(&Private) || self.flags.contains(&Secret))
-        && !self.member_with_id(client.id()).is_some() {
-            // Don't give information about this channel to the outside
-            // this should also be ok for secret because RPL_ENDOFWHO is
-            // always sent.
-        } else {
-            for (_, member) in self.members.iter() {
-                self.send_response(&client, cmd::RPL_WHOREPLY, [
-                    self.name.as_slice(),
-                    member.username(),
-                    member.hostname(),
-                    self.server_name.as_slice(),
-                    member.nick(),
-                    format!("{}{}{}", 
-                        "H", // always here as long away is not implemented
-                        "", // * is not supported yet
-                        member.decoration()
-                    ).as_slice(),
-                    format!("0 {}", member.realname()).as_slice()
-                ]);
-            }
-        }
-        self.send_response(&client, cmd::RPL_ENDOFWHO, [
-            message.mask.as_slice(), "End of WHO list"
-        ]);
-    }
-
     
     /// handles private messages
     pub fn handle_privmsg(&mut self, client_id: ClientId, message: RawMessage) {

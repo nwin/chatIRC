@@ -12,6 +12,7 @@ mod registration;
 mod join;
 mod part;
 mod mode;
+mod lists;
 
 macro_rules! handle {
     {$(

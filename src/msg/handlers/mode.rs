@@ -39,7 +39,7 @@ impl Mode {
                         if set {
                             channel.add_flag(mode);
                         } else {
-                            channel.remove_flag(&mode);
+                            channel.remove_flag(mode);
                         }
                         
                     },
@@ -73,17 +73,17 @@ impl Mode {
                                 BanMask => if set {
                                     channel.add_ban_mask(host_mask);
                                 } else {
-                                    channel.remove_ban_mask(&host_mask);
+                                    channel.remove_ban_mask(host_mask);
                                 },
                                 ExceptionMask => if set {
                                     channel.add_except_mask(host_mask);
                                 } else {
-                                    channel.remove_except_mask(&host_mask);
+                                    channel.remove_except_mask(host_mask);
                                 },
                                 InvitationMask => if set {
                                     channel.add_invite_mask(host_mask);
                                 } else {
-                                    channel.remove_invite_mask(&host_mask);
+                                    channel.remove_invite_mask(host_mask);
                                 },
                                 _ => unreachable!()
                             }
