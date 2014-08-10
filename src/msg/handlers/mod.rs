@@ -115,7 +115,7 @@ impl MessageHandler for ExtensionHandler {
         Ok(box ExtensionHandler { raw: message })
     }
     fn invoke(self, _: &mut Server, _: SharedClient) {
-        error!("Handly of message {} not implemented yet", self.raw.command())
+        error!("Handling of message {} not implemented yet", self.raw.command().to_string())
     }
     fn raw_message(&self) -> &RawMessage { &self.raw }
 }
