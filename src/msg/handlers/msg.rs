@@ -1,6 +1,7 @@
 use cmd;
 use channel;
-use channel::{Channel, MemberOnly, VoicePrivilege};
+use channel::{Channel};
+use channel::util::{MemberOnly, VoicePrivilege};
 use msg::RawMessage;
 use msg::util;
 

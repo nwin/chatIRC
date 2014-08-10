@@ -2,7 +2,7 @@ use cmd;
 use client;
 use client::SharedClient;
 use channel;
-use channel::{AnonChannel, InviteOnly, Moderated, MemberOnly,
+use channel::util::{AnonChannel, InviteOnly, Moderated, MemberOnly,
     Quiet, Private, Secret, ReOpFlag, TopicProtect, OperatorPrivilege,
     VoicePrivilege, ChannelKey, UserLimit, BanMask, ExceptionMask,
     InvitationMask, ChannelCreator

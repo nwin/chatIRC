@@ -1,6 +1,7 @@
 use cmd;
 use channel;
-use channel::{Channel, Secret, Private};
+use channel::{Channel};
+use channel::util::{Secret, Private};
 use msg::RawMessage;
 use msg::util;
 

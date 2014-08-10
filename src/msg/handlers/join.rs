@@ -1,9 +1,10 @@
 use cmd;
 use channel;
+use channel::util::{ChannelCreator, OperatorPrivilege};
 use msg::RawMessage;
 use msg::util;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 use client::SharedClient;
 
 /// Handles the JOIN command
@@ -38,8 +39,8 @@ impl Join {
             Some(member.nick())
         );
         if this.member_count() == 0 { // first user
-            member.promote(channel::ChannelCreator);
-            member.promote(channel::OperatorPrivilege);
+            member.promote(ChannelCreator);
+            member.promote(OperatorPrivilege);
         }
         let id = member.id().clone();
         let _ = this.add_member(member);
@@ -111,7 +112,7 @@ impl super::MessageHandler for Join {
             );
             let tx = server.tx().unwrap();
             server.channels.find_or_insert_with(channel.to_string(), |key| {
-                ChannelProxy::new(
+                channel::Proxy::new(
                     key.clone(),
                     channel::Channel::new(key.clone(), host.clone()).listen(),
                     // this should exist by now

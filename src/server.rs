@@ -6,37 +6,11 @@ use std::io::net;
 use std::io;
 use std::collections::hashmap::{HashMap};
 
-use channel::{ChannelEvent};
 use client::{SharedClient, Client, ClientId};
 use msg::{MessageHandler};
+
 use cmd;
-
-/// Forwards the message to a channel
-pub struct ChannelProxy {
-    name: String,
-    tx: Sender<ChannelEvent>,
-    server_tx: Sender<Event>
-}
-
-impl ChannelProxy {
-    pub fn new(name: String,
-           tx: Sender<ChannelEvent>, 
-           server_tx: Sender<Event>) -> ChannelProxy {
-        ChannelProxy {
-            name: name,
-            tx: tx,
-            server_tx: server_tx
-        }
-    }
-    pub fn send(&self, event: ChannelEvent) {
-        match self.tx.send_opt(event) {
-            Ok(_) => {},
-            Err(_) => {
-                let _ = self.server_tx.send_opt(ChannelLost(self.name.clone()));
-            }
-        }
-    }
-}
+use channel;
 
 pub struct Server {
     host: String,
@@ -46,7 +20,7 @@ pub struct Server {
     // TODO put unregisterd clients in a staging Map
     clients: HashMap<ClientId, SharedClient>,
     pub registered: HashMap<String, SharedClient>,
-    pub channels: HashMap<String, ChannelProxy>
+    pub channels: HashMap<String, channel::Proxy>
 }
 
 /// Enumeration of the events the server can receive
