@@ -440,6 +440,10 @@ impl Channel {
         }
     }
     
+    pub fn member_with_nick(&self, nick: &String) -> Option<&Member> {
+        self.members.find(nick)
+    }
+    
     pub fn mut_member_with_nick(&mut self, nick: &String) -> Option<&mut Member> {
         self.members.find_mut(nick)
     }
@@ -447,45 +451,8 @@ impl Channel {
     /// Broadcasts a message to all members
     #[inline]
     pub fn broadcast(&self, message: RawMessage) {
-        for (_, member) in self.members.iter() {
+        for member in self.members() {
             member.send_msg(message.clone())
-        }
-    }
-    
-    /// handles private messages
-    pub fn handle_privmsg(&mut self, client_id: ClientId, message: RawMessage) {
-        let nick = self.nicknames.find(&client_id).clone();
-        let maybe_member = match nick {
-            Some(nick) => self.members.find(nick),
-            None => None
-        };
-        
-        if self.flags.contains(&MemberOnly)
-        || self.flags.contains(&VoicePrivilege) {
-            match maybe_member {
-                Some(sender) => {
-                    if self.flags.contains(&VoicePrivilege) && !sender.has_voice() {
-                        return // TODO error message
-                    }
-                    for (_, member) in self.members.iter() {
-                        if member != sender {
-                            member.send_msg(message.clone())
-                        }
-                    }
-                },
-                None => {
-                    return // TODO error message
-                }
-            }
-        } else { // Message goes to everybody
-            match maybe_member {
-                Some(sender) => for (_, member) in self.members.iter() {
-                    if member != sender {
-                        member.send_msg(message.clone())
-                    }
-                },
-                None => self.broadcast(message)
-            }
         }
     }
 }

@@ -9,6 +9,7 @@ use super::{RawMessage};
 use super::util;
 
 mod registration;
+mod msg;
 mod join;
 mod part;
 mod mode;
