@@ -164,6 +164,11 @@ impl Server {
         self.tx.clone()
     }
     
+    pub fn remove_client(&mut self, client: &SharedClient) {
+        let client = client.borrow();
+        self.nicknames.remove(&client.nickname);
+        self.clients.remove(&client.id());
+    }
     
     /// Sends a welcome message to a newly registered client
     fn send_welcome_msg(&self, client: &SharedClient) {
@@ -263,19 +268,6 @@ impl Server {
         } else {
             self.nicknames.insert(nick, origin.clone());
             self.send_welcome_msg(origin);
-        }
-    }
-    
-    /// Handles the QUIT command
-    fn handle_quit(&mut self, origin: SharedClient, message: msg::QuitMessage) {
-        let mut client = origin.borrow_mut();
-        client.close_connection();
-        self.nicknames.remove(&client.nickname);
-        self.clients.remove(&client.id());
-        let proxy = client.proxy();
-        for (_, channel) in self.channels.iter() {
-            // TODO make this more performant, cache channels in user?
-            channel.send(channel::Quit(proxy.clone(), message.clone()))
         }
     }
 }

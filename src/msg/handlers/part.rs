@@ -7,34 +7,35 @@ use msg::util;
 use server::{Server, ChannelProxy};
 use client::SharedClient;
 
+
+/// Handles the quit/part event
+pub fn do_quit_leave(channel: &mut channel::Channel, client: client::ClientProxy,
+                    command: cmd::Command, reason: Option<Vec<u8>>) {
+    let nick = channel.member_with_id(client.id()).map(|v| v.nick().to_string());
+    match nick {
+        Some(nick) => {
+            let msg = {
+                let payload = match reason {
+                    None => vec![channel.name().as_bytes()],
+                    Some(ref reason) => vec![channel.name().as_bytes(), reason.as_slice()],
+                    };
+                RawMessage::new_raw(
+                    command, payload.as_slice(), Some(nick.as_bytes())
+                )
+            };
+            channel.broadcast(msg);
+            channel.remove_member(&client.id());
+        },
+        None => channel.send_response(&client, cmd::ERR_NOTONCHANNEL,
+            [channel.name(), "You are not on this channel."]
+        )
+    }
+}
 /// Handles the PART command
 pub struct Part {
     raw: RawMessage,
     channels: Vec<String>,
     reason: Option<Vec<u8>> 
-}
-impl Part {
-    fn handle_part(channel: &mut channel::Channel, client: client::ClientProxy, reason: Option<Vec<u8>>) {
-        let nick = channel.member_with_id(client.id()).map(|v| v.nick().to_string());
-        match nick {
-            Some(nick) => {
-                let msg = {
-                    let payload = match reason {
-                        None => vec![channel.name().as_bytes()],
-                        Some(ref reason) => vec![channel.name().as_bytes(), reason.as_slice()],
-                        };
-                    RawMessage::new_raw(
-                        cmd::PART, payload.as_slice(), Some(nick.as_bytes())
-                    )
-                };
-                channel.broadcast(msg);
-                channel.remove_member(&client.id());
-            },
-            None => channel.send_response(&client, cmd::ERR_NOTONCHANNEL,
-                [channel.name(), "You are not on this channel."]
-            )
-        }
-    }
 }
 impl super::MessageHandler for Part {
     fn from_message(message: RawMessage) -> Result<Box<Part>, RawMessage> {
@@ -71,11 +72,7 @@ impl super::MessageHandler for Part {
                     let reason = self.reason.clone();
                     let proxy = origin.borrow().proxy();
                     channel.send(channel::HandleMut(proc(channel) {
-                        Part::handle_part(
-                            channel, 
-                            proxy,
-                            reason
-                        )
+                        do_quit_leave(channel, proxy, cmd::PART, reason)
                     }))
                 },
                 None => origin
@@ -84,6 +81,38 @@ impl super::MessageHandler for Part {
                     
                     
             }
+        }
+    }
+    fn raw_message(&self) -> &RawMessage {
+        &self.raw
+    }
+}
+
+/// Handles the QUIT command
+pub struct Quit {
+    raw: RawMessage,
+    reason: Option<Vec<u8>>
+}
+impl super::MessageHandler for Quit {
+    fn from_message(message: RawMessage) -> Result<Box<Quit>, RawMessage> {
+        let reason = message.params().as_slice().get(0).map(
+            |&v| v.to_vec());
+        Ok(box Quit {
+            raw: message, reason: reason
+        })
+    }
+    fn invoke(self, server: &mut Server, origin: SharedClient) {
+        let mut client = origin.borrow_mut();
+        client.close_connection();
+        server.remove_client(&origin);
+        let proxy = client.proxy();
+        for (_, channel) in server.channels.iter() {
+            // TODO make this more performant, cache channels in user?
+            let reason = self.reason.clone();
+            let proxy = origin.borrow().proxy();
+            channel.send(channel::HandleMut(proc(channel) {
+                do_quit_leave(channel, proxy, cmd::QUIT, reason)
+            }))
         }
     }
     fn raw_message(&self) -> &RawMessage {

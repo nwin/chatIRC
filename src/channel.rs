@@ -273,7 +273,6 @@ pub enum ChannelResponse {
 /// Enumeration of events a channel can receive
 pub enum ChannelEvent {
     Message(ChannelCommand, ClientId, RawMessage), // This will be removed later
-    Quit(ClientProxy, msg::QuitMessage),
     Who(ClientProxy, msg::WhoMessage),
     Reply(ChannelResponse, ClientProxy),
     Handle(proc(&Channel): Send),
@@ -451,7 +450,6 @@ impl Channel {
                     PRIVMSG => self.handle_privmsg(client_id, message),
                 }
             },
-            Quit(proxy, msg) => self.handle_quit(proxy, msg),
             Who(proxy, msg) => self.handle_who(proxy, msg),
             Reply( _, proxy) => 
                 self.handle_names(&proxy)
@@ -517,32 +515,7 @@ impl Channel {
             message.mask.as_slice(), "End of WHO list"
         ]);
     }
-    
-    /// Handles the quit event
-    pub fn handle_quit(&mut self, client: ClientProxy, message: msg::QuitMessage) {
-        self.handle_leave(client, cmd::QUIT, message.reason)
-    }
-    
-    /// Handles the quit/part event
-    pub fn handle_leave(&mut self, client: ClientProxy,
-                        command: cmd::Command, reason: Option<Vec<u8>>) {
-        let nick = self.member_with_id(client.id()).map(|v| v.nick.clone());
-        match nick {
-            Some(nick) => {
-                let payload = match reason {
-                    None => vec![self.name.as_bytes()],
-                    Some(ref reason) =>  vec![self.name.as_bytes(), reason.as_slice()],
-                };
-                self.broadcast(RawMessage::new_raw(
-                    command, payload.as_slice(), Some(nick.as_bytes())));
-                self.nicknames.remove(&client.id());
-                self.members.remove(&nick);
-            },
-            None => self.send_response(&client, cmd::ERR_NOTONCHANNEL,
-                [self.name.as_slice(), "You are not on this channel."]
-            )
-        }
-    }
+
     
     /// handles private messages
     pub fn handle_privmsg(&mut self, client_id: ClientId, message: RawMessage) {

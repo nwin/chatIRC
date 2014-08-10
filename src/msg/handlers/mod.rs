@@ -32,6 +32,7 @@ handle!{
     MODE with self::mode::Mode;
     JOIN with self::join::Join;
     PART with self::part::Part;
+    QUIT with self::part::Quit;
 }
 
 ///// Temporary dispatcher
@@ -53,7 +54,7 @@ handle!{
 ///     }
 /// }
 /// impl super::MessageHandler for Handler {
-///     fn from_message(message: RawMessage) -> Result<Box<Join>, RawMessage> {
+///     fn from_message(message: RawMessage) -> Result<Box<Hander>, RawMessage> {
 ///     }
 ///     fn invoke(self, server: &mut Server, origin: SharedClient) {
 ///     }
