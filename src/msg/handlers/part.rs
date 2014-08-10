@@ -105,7 +105,6 @@ impl super::MessageHandler for Quit {
         let mut client = origin.borrow_mut();
         client.close_connection();
         server.remove_client(&origin);
-        let proxy = client.proxy();
         for (_, channel) in server.channels.iter() {
             // TODO make this more performant, cache channels in user?
             let reason = self.reason.clone();

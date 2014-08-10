@@ -8,6 +8,7 @@ use channel;
 use super::{RawMessage};
 use super::util;
 
+mod registration;
 mod join;
 mod part;
 mod mode;
@@ -54,7 +55,7 @@ handle!{
 ///     }
 /// }
 /// impl super::MessageHandler for Handler {
-///     fn from_message(message: RawMessage) -> Result<Box<Hander>, RawMessage> {
+///     fn from_message(message: RawMessage) -> Result<Box<Handler>, RawMessage> {
 ///     }
 ///     fn invoke(self, server: &mut Server, origin: SharedClient) {
 ///     }

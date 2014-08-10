@@ -51,7 +51,7 @@ pub struct Server {
     tx: Option<Sender<Event>>,
     // TODO put unregisterd clients in a staging Map
     clients: HashMap<ClientId, SharedClient>,
-    nicknames: HashMap<String, SharedClient>,
+    pub registered: HashMap<String, SharedClient>,
     pub channels: HashMap<String, ChannelProxy>
 }
 
@@ -91,7 +91,7 @@ impl Server {
             port: 6667,
             tx: None,
             clients: HashMap::new(),
-            nicknames: HashMap::new(),
+            registered: HashMap::new(),
             channels: HashMap::new()
         })
     }
@@ -166,12 +166,12 @@ impl Server {
     
     pub fn remove_client(&mut self, client: &SharedClient) {
         let client = client.borrow();
-        self.nicknames.remove(&client.nickname);
+        self.registered.remove(&client.nickname);
         self.clients.remove(&client.id());
     }
     
     /// Sends a welcome message to a newly registered client
-    fn send_welcome_msg(&self, client: &SharedClient) {
+    pub fn send_welcome_msg(&self, client: &SharedClient) {
         client.borrow().send_response(RPL_WELCOME, None, None)
     }
 
@@ -188,7 +188,7 @@ impl Server {
                         )),
                     None => {}
                 },
-                NickName(nick) => match self.nicknames.find_mut(&nick.to_string()) {
+                NickName(nick) => match self.registered.find_mut(&nick.to_string()) {
                     Some(client) => {
                         client.borrow_mut().send_msg(message.raw.clone());
                     },
@@ -230,44 +230,6 @@ impl Server {
                 message,
             )),
             None => {} // handle later
-        }
-    }
-    
-    /// Handles the nick command
-    ///    Command: NICK
-    /// Parameters: <nickname> [ <hopcount> ]
-    fn handle_nick(&mut self, origin: SharedClient, message: msg::NickMessage) {
-        if self.nicknames.contains_key(&message.nick) {
-            origin.borrow().send_response(
-                ERR_NICKNAMEINUSE,
-                Some(message.nick.as_slice()), 
-                Some("nickname in use")
-            );
-        } else {
-            origin.borrow_mut().nickname = message.nick;
-        }
-        if origin.borrow().username.len() > 0 && !self.nicknames.contains_key(&origin.borrow().nickname){
-            // user message already send but not yet registered
-            self.try_register(&origin)
-        }
-    }
-    
-    /// Handles the USER command
-    fn handle_user(&mut self, origin: SharedClient, message: msg::UserMessage) {
-        origin.borrow_mut().username = message.username;
-        origin.borrow_mut().realname = message.realname;
-        self.try_register(&origin)
-    }
-    
-    fn try_register(&mut self, origin: &SharedClient) {
-        let nick = origin.borrow().nickname.clone();
-        if nick.len() > 0 && self.nicknames.contains_key(&nick) {
-            origin.borrow().send_response(ERR_ALREADYREGISTRED, None,
-                Some("somebody already registered with the same nickname")
-            );
-        } else {
-            self.nicknames.insert(nick, origin.clone());
-            self.send_welcome_msg(origin);
         }
     }
 }
