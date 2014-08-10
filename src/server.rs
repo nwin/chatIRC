@@ -71,7 +71,10 @@ impl Server {
     pub fn new(host: &str) -> IoResult<Server> {
         let addresses = try!(net::get_host_addresses(host));
         debug!("{}", addresses)
-        let ip = match addresses.as_slice().get(0) {
+        // Listen only on ipv4 for now…
+        let ip = match addresses.iter().filter(
+            |&v| match v { &net::ip::Ipv4Addr(_, _, _, _) => true, _ => false }
+        ).nth(0) {
             Some(ip) => ip,
             None => return Err(io::IoError {
                 kind: io::OtherIoError,
