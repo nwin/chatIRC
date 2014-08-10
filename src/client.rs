@@ -2,7 +2,6 @@ use std::io::{TcpStream, BufferedReader, BufferedWriter};
 use std::io::{IoResult};
 use std::io::net::ip::{Ipv4Addr, Ipv6Addr};
 use std::rc::{Rc, Weak};
-//use std::sync::{Arc, Weak};
 use std::cell::{RefCell};
 use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};

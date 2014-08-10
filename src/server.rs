@@ -17,7 +17,6 @@ pub struct Server {
     ip: String,
     port: u16, 
     tx: Option<Sender<Event>>,
-    // TODO put unregisterd clients in a staging Map
     clients: HashMap<ClientId, SharedClient>,
     pub registered: HashMap<String, SharedClient>,
     pub channels: HashMap<String, channel::Proxy>
