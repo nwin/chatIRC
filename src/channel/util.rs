@@ -43,6 +43,17 @@ pub enum ChannelMode {
     InvitationMask = b'I' as int
 }
 
+// Actions which determine what to do with a mode
+#[deriving(PartialEq, Eq, Show)]
+pub enum Action {
+    // Add a flag
+    Add,
+    // Remove a flag
+    Remove,
+    // Show the flag
+    Show
+}
+
 impl ChannelMode {
     fn has_parameter(&self) -> bool {
         match *self {
@@ -77,25 +88,20 @@ impl ChannelMode {
 /// ```
 /// 
 /// 
-pub fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
+pub fn modes_do(slice: &[&[u8]], block: |Action, ChannelMode, Option<&[u8]>|) {
     let mut current = slice;
     loop {
         // Bug: no +/- asking for modes
-        let set = match current[0][0] {
-            b'+' => true,
-            b'-' => false,
-            _ => {
-                if current.len() > 1 {
-                    current = current.slice_from(1);
-                    continue
-                } else { break }
-            }
+        let (action, offset) = match current[0][0] {
+            b'+' => (Add, 1),
+            b'-' => (Remove, 1),
+            _ => (Show, 0)
             
         };
-        for mode in current[0].slice_from(1).iter().filter_map( |&v| {
+        for mode in current[0].slice_from(offset).iter().filter_map( |&v| {
             let m: Option<ChannelMode> = FromPrimitive::from_u8(v); m
         }) {
-            let param = if mode.has_parameter() {
+            let param = if mode.has_parameter() && action != Show {
                 let param = current.get(1).map(|v| *v);
                 if current.len() > 1 {
                     current = current.slice_from(1);
@@ -104,7 +110,7 @@ pub fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
             } else {
                 None
             };
-            block(set, mode, param);
+            block(action, mode, param);
         }
         if current.len() > 1 {
             current = current.slice_from(1);
@@ -112,5 +118,45 @@ pub fn modes_do(slice: &[&[u8]], block: |bool, ChannelMode, Option<&[u8]>|) {
     }
 }
 
-/// Enumertion of channel modes / member flags
+/// List of channel modes / member flags
 pub type Flags = HashSet<ChannelMode>;
+
+
+#[cfg(test)]
+mod tests {
+	use super::{modes_do, BanMask, ExceptionMask, Add, Show};
+    use msg::{RawMessage};
+	/// Tests the mode parser
+    
+    
+    
+	#[test]
+	fn test_mode_parser() {
+        let msgs = [
+            b"MODE &oulu +b *!*@*.edu +e *!*@*.bu.edu",
+            b"MODE #bu +be *!*@*.edu *!*@*.bu.edu",
+            b"MODE #bu b",
+            //b"MODE #bu /i", // Invalid mode should be skipped
+            b"MODE #bu +g", // Invalid mode should be skipped
+        ];
+        let modes = [
+            vec![(Add, BanMask, Some(b"*!*@*.edu")),
+            (Add, ExceptionMask, Some(b"*!*@*.bu.edu"))],
+            vec![(Add, BanMask, Some(b"*!*@*.edu")),
+            (Add, ExceptionMask, Some(b"*!*@*.bu.edu"))],
+            vec![(Show, BanMask, None)],
+            //Vec::new(),
+            Vec::new(),
+        ];
+        for (msg, modes) in msgs.iter().zip(modes.iter()) {
+            let m = RawMessage::parse(*msg).unwrap();
+            let mut mode_iter = modes.iter();
+            modes_do(m.params().slice_from(1), |set, mode, parameter| {
+                let (set_, mode_, parameter_) = *mode_iter.next().unwrap();
+                assert_eq!(set_, set);
+                assert_eq!(mode_, mode);
+                assert_eq!(parameter_.to_string(), parameter.to_string());
+            })
+        }
+	}
+}

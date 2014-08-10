@@ -11,6 +11,7 @@
 extern crate collections;
 extern crate libc;
 
+#[cfg(not(test))]
 use server::{run_server};
 
 // pub only for documentation purposes
@@ -21,6 +22,7 @@ pub mod channel;
 pub mod msg;
 pub mod cmd;
 
+#[cfg(not(test))]
 fn main() {
     match run_server("localhost") {
         Ok(_) => {},

@@ -7,6 +7,7 @@ use channel::util::{AnonChannel, InviteOnly, Moderated, MemberOnly,
     VoicePrivilege, ChannelKey, UserLimit, BanMask, ExceptionMask,
     InvitationMask, ChannelCreator
 };
+use channel::util::{Add, Remove, Show};
 use msg::RawMessage;
 use msg::util;
 
@@ -32,65 +33,78 @@ impl Mode {
         let params = message.params();
         if params.len() > 1 {
             if !is_op { return } // TODO: error message
-            channel::modes_do(params.slice_from(1), | set, mode, parameter | {
+            channel::modes_do(params.slice_from(1), | action, mode, parameter | {
                 match mode {
                     AnonChannel | InviteOnly | Moderated | MemberOnly 
                     | Quiet | Private | Secret | ReOpFlag | TopicProtect => {
-                        if set {
-                            channel.add_flag(mode);
-                        } else {
-                            channel.remove_flag(mode);
+                        match action {
+                            Add => {channel.add_flag(mode);},
+                            Remove => {channel.remove_flag(mode);},
+                            Show => {} // ignore
                         }
                         
                     },
                     OperatorPrivilege | VoicePrivilege => {
                         match parameter { Some(name) => {
                                 match channel.mut_member_with_nick(&name.to_string()) {
-                                    Some(member) => if set {
-                                        member.promote(mode)
-                                    } else {
-                                        member.demote(mode)
+                                    Some(member) => match action {
+                                        Add => member.promote(mode),
+                                        Remove => member.demote(mode),
+                                        Show => {}
                                     }, None => {}
                                 }
                             }, None => {}
                         }
                     },
-                    ChannelKey => {
-                        match parameter { Some(password) => {
-                                channel.password = password.to_vec()
-                            }, None => {}
+                    ChannelKey => match action {
+                        Add => if parameter.is_some() {
+                            channel.set_password(parameter.and_then(|v| Some(v.to_vec())))
+                        },
+                        Remove => channel.set_password(None),
+                        Show => {} // this might not be a good idea
+                    },
+                    UserLimit => match action {
+                        Add => match parameter.and_then(|v| from_str::<uint>(String::from_utf8_lossy(v).as_slice())) {
+                            Some(limit) => channel.set_limit(Some(limit)),
+                            _ => {}
+                        },
+                        Remove => channel.set_limit(None),
+                        Show => {} // todo show
+                    },
+                    BanMask | ExceptionMask | InvitationMask => match action {
+                        Show => {}, // TODO handle show
+                        _ => match parameter { 
+                            Some(mask) => {
+                                let host_mask = util::HostMask::new(
+                                    String::from_utf8_lossy(mask).to_string()
+                                );
+                                match mode {
+                                    BanMask => match action {
+                                        Add => {channel.add_ban_mask(host_mask);},
+                                        Remove => {channel.remove_ban_mask(host_mask);},
+                                        Show => {} // handled above
+                                    },
+                                    ExceptionMask => match action {
+                                        Add => {channel.add_except_mask(host_mask);},
+                                        Remove => {channel.remove_except_mask(host_mask);},
+                                        Show => {} // handled above
+                                    },
+                                    InvitationMask => match action {
+                                        Add => {channel.add_invite_mask(host_mask);},
+                                        Remove => {channel.remove_invite_mask(host_mask);},
+                                        Show => {} // handled above
+                                    },
+                                    _ => unreachable!()
+                                }
+                            },
+                            None => {}
                         }
                     },
-                    UserLimit => {
-                        error!("UserLimit mode not implemented yet")
-                    },
-                    BanMask | ExceptionMask | InvitationMask => match parameter { 
-                        Some(mask) => {
-                            let host_mask = util::HostMask::new(
-                                String::from_utf8_lossy(mask).to_string()
-                            );
-                            match mode {
-                                BanMask => if set {
-                                    channel.add_ban_mask(host_mask);
-                                } else {
-                                    channel.remove_ban_mask(host_mask);
-                                },
-                                ExceptionMask => if set {
-                                    channel.add_except_mask(host_mask);
-                                } else {
-                                    channel.remove_except_mask(host_mask);
-                                },
-                                InvitationMask => if set {
-                                    channel.add_invite_mask(host_mask);
-                                } else {
-                                    channel.remove_invite_mask(host_mask);
-                                },
-                                _ => unreachable!()
-                            }
-                        }, None => {}
-                    },
                     ChannelCreator => {
-                        // This is can't be set after channel creation 
+                        match action {
+                            Add | Remove => {} // This is can't be set after channel creation 
+                            Show => {} // TODO show
+                        }
                     },
                 }
             });

@@ -54,8 +54,9 @@ pub struct Channel {
     name: String,
     server_name: String,
     topic: String,
-    pub password: Vec<u8>,
+    password: Option<Vec<u8>>,
     flags: Flags,
+    limit: Option<uint>,
     members: HashMap<String, Member>,
     nicknames: HashMap<ClientId, String>,
     ban_masks: HashSet<HostMask>,
@@ -69,8 +70,9 @@ impl Channel {
             name: name,
             server_name: server_name,
             topic: "".to_string(),
-            password: Vec::new(),
+            password: None,
             flags: HashSet::new(),
+            limit: None,
             members: HashMap::new(),
             nicknames: HashMap::new(),
             ban_masks: HashSet::new(),
@@ -117,6 +119,24 @@ impl Channel {
     /// Getter for server name
     pub fn server_name(&self) -> &str {
         self.name.as_slice()
+    }
+    
+    /// Getter for the user limit
+    pub fn limit(&self) -> Option<uint> {
+        self.limit
+    }
+    /// Setter for the user limit
+    pub fn set_limit(&mut self, limit: Option<uint>) {
+        self.limit = limit
+    }
+    
+    /// Getter for the channel password
+    pub fn password(&self) -> &Option<Vec<u8>> {
+        &self.password
+    }
+    /// Setter for the channel password
+    pub fn set_password(&mut self, password: Option<Vec<u8>>) {
+        self.password = password
     }
     
     /// Returns the member count
@@ -241,42 +261,4 @@ impl Channel {
             member.send_msg(message.clone())
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-	use super::util::{modes_do, BanMask, ExceptionMask};
-    use msg::{RawMessage};
-	/// Tests the mode parser
-    
-    
-    
-	#[test]
-	fn test_mode_parser() {
-        let msgs = [
-            b"MODE &oulu +b *!*@*.edu +e *!*@*.bu.edu",
-            b"MODE #bu +be *!*@*.edu *!*@*.bu.edu",
-            b"MODE #bu /i", // Invalid mode should be skipped
-            b"MODE #bu +g", // Invalid mode should be skipped
-        ];
-        let modes = [
-            vec![(true, BanMask, Some(b"*!*@*.edu")),
-            (true, ExceptionMask, Some(b"*!*@*.bu.edu"))],
-            vec![(true, BanMask, Some(b"*!*@*.edu")),
-            (true, ExceptionMask, Some(b"*!*@*.bu.edu"))],
-            Vec::new(),
-            Vec::new(),
-        ];
-        for (msg, modes) in msgs.iter().zip(modes.iter()) {
-            let m = RawMessage::parse(*msg).unwrap();
-            let mut mode_iter = modes.iter();
-            modes_do(m.params().slice_from(1), |set, mode, parameter| {
-                println!("{}",set);
-                let (set_, mode_, parameter_) = *mode_iter.next().unwrap();
-                assert_eq!(set_, set);
-                assert_eq!(mode_, mode);
-                assert_eq!(parameter_.to_string(), parameter.to_string());
-            })
-        }
-	}
 }

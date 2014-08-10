@@ -19,15 +19,17 @@ pub struct Join {
 
 impl Join {
     fn handle_join(this: &mut channel::Channel, mut member: channel::Member, password: Option<Vec<u8>>) {
-        if this.password.len() != 0 {
-            if !match password { Some(password) => password == this.password,
-                                 None => false } {
+        match this.password() {
+            &Some(ref chan_pass) => if !match password { 
+                    Some(password) => &password == chan_pass,
+                    None => false } {
                 member.send_response(cmd::ERR_BADCHANNELKEY,
                     [this.name(),
                     "Password is wrong"]
                 );
                 return
-            }
+            },
+            &None => {},
         }
         if this.member_with_id(member.id()).is_some() {
             //member already in channel
