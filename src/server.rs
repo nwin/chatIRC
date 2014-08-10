@@ -7,15 +7,9 @@ use std::io;
 use std::collections::hashmap::{HashMap};
 
 use channel::{ChannelEvent};
-use channel;
 use client::{SharedClient, Client, ClientId};
-use msg::util::{ChannelName, NickName};
-use msg::util;
 use msg::{MessageHandler};
-use msg;
-
-use cmd::*;
-
+use cmd;
 
 /// Forwards the message to a channel
 pub struct ChannelProxy {
@@ -172,6 +166,6 @@ impl Server {
     
     /// Sends a welcome message to a newly registered client
     pub fn send_welcome_msg(&self, client: &SharedClient) {
-        client.borrow().send_response(RPL_WELCOME, None, None)
+        client.borrow().send_response(cmd::RPL_WELCOME, None, None)
     }
 }

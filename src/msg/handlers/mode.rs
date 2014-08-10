@@ -10,7 +10,7 @@ use channel::{AnonChannel, InviteOnly, Moderated, MemberOnly,
 use msg::RawMessage;
 use msg::util;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 
 
 /// Handles the MODE command

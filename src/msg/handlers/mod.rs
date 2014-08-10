@@ -1,12 +1,10 @@
-use cmd::{REPLY, UNKNOWN, ResponseCode};
+use cmd::{REPLY, UNKNOWN};
 use cmd;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 use client::SharedClient;
-use channel;
 
 use super::{RawMessage};
-use super::util;
 
 mod registration;
 mod msg;
@@ -14,6 +12,7 @@ mod join;
 mod part;
 mod mode;
 mod lists;
+mod ping_pong;
 
 macro_rules! handle {
     {$(
@@ -26,16 +25,30 @@ pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Ra
             let t: Result<Box<$handler>, RawMessage> = MessageHandler::from_message(message);
             t.map(|v| v as Box<MessageHandler + Send>)
         },)*
-        _ => fail!("get_handler, not handled yet")
+        REPLY(_) => {
+            let t: Result<Box<Reply>, RawMessage> = MessageHandler::from_message(message);
+            t.map(|v| v as Box<MessageHandler + Send>)
+        },
+        UNKNOWN(_) => {
+            let t: Result<Box<ExtensionHandler>, RawMessage> = MessageHandler::from_message(message);
+            t.map(|v| v as Box<MessageHandler + Send>)
+        }
     }
 }
 }}
 
 handle!{
+    PRIVMSG with self::msg::Privmsg;
+    NAMES with self::lists::Names;
+    WHO with self::lists::Who;
     MODE with self::mode::Mode;
     JOIN with self::join::Join;
     PART with self::part::Part;
     QUIT with self::part::Quit;
+    NICK with self::registration::Nick;
+    USER with self::registration::User;
+    PING with self::ping_pong::Ping;
+    PONG with self::ping_pong::Pong;
 }
 
 ///// Temporary dispatcher
@@ -77,4 +90,32 @@ pub trait MessageHandler {
     /// Returns the raw message the handler is bases on
     fn raw_message(&self) -> &RawMessage;
     
+}
+
+/// Handles (ignores) reply codes from clients
+struct Reply {
+    raw: RawMessage,
+}
+impl MessageHandler for Reply {
+    fn from_message(message: RawMessage) -> Result<Box<Reply>, RawMessage> {
+        Ok(box Reply { raw: message })
+    }
+    fn invoke(self, _: &mut Server, _: SharedClient) {
+        // Ingore reply codes from clients they are not allowed to send any
+    }
+    fn raw_message(&self) -> &RawMessage { &self.raw }
+}
+
+/// Handles unknown messages. Could be used as an entry point for plugins
+pub struct ExtensionHandler {
+    raw: RawMessage,
+}
+impl MessageHandler for ExtensionHandler {
+    fn from_message(message: RawMessage) -> Result<Box<ExtensionHandler>, RawMessage> {
+        Ok(box ExtensionHandler { raw: message })
+    }
+    fn invoke(self, _: &mut Server, _: SharedClient) {
+        error!("Handly of message {} not implemented yet", self.raw.command())
+    }
+    fn raw_message(&self) -> &RawMessage { &self.raw }
 }

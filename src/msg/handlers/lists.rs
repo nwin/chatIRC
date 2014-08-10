@@ -4,7 +4,7 @@ use channel::{Channel, Secret, Private};
 use msg::RawMessage;
 use msg::util;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 use client::{SharedClient, ClientProxy};
 
 /// Handles the WHO message

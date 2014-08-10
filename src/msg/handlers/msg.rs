@@ -4,7 +4,7 @@ use channel::{Channel, MemberOnly, VoicePrivilege};
 use msg::RawMessage;
 use msg::util;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 use client::{SharedClient, ClientId};
 
 /// handles private messages

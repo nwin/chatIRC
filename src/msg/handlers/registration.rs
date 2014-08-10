@@ -2,7 +2,7 @@ use cmd;
 use msg::RawMessage;
 use msg::util;
 
-use server::{Server, ChannelProxy};
+use server::{Server};
 use client::SharedClient;
 
 
