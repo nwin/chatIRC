@@ -18,13 +18,13 @@ pub mod member;
 /// Forwards the message to a channel
 pub struct Proxy {
     name: String,
-    tx: Sender<ChannelEvent>,
+    tx: Sender<Event>,
     server_tx: Sender<server::Event>
 }
 
 impl Proxy {
     pub fn new(name: String,
-           tx: Sender<ChannelEvent>, 
+           tx: Sender<Event>, 
            server_tx: Sender<server::Event>) -> Proxy {
         Proxy {
             name: name,
@@ -32,7 +32,7 @@ impl Proxy {
             server_tx: server_tx
         }
     }
-    pub fn send(&self, event: ChannelEvent) {
+    pub fn send(&self, event: Event) {
         match self.tx.send_opt(event) {
             Ok(_) => {},
             Err(_) => {
@@ -44,7 +44,7 @@ impl Proxy {
 
 
 /// Enumeration of events a channel can receive
-pub enum ChannelEvent {
+pub enum Event {
     Handle(proc(&Channel): Send),
     HandleMut(proc(&mut Channel): Send),
 }
@@ -80,7 +80,7 @@ impl Channel {
     }
     
     /// Starts listening for events in a separate thread
-    pub fn listen(self) -> Sender<ChannelEvent> {
+    pub fn listen(self) -> Sender<Event> {
         let (tx, rx) = channel();
         spawn(proc() {
             let mut this = self;
@@ -92,7 +92,7 @@ impl Channel {
     }
 
     /// Message dispatcher
-    fn dispatch(&mut self, event: ChannelEvent) {
+    fn dispatch(&mut self, event: Event) {
         match event {
             Handle(handler) => handler(self),
             HandleMut(handler) => handler(self),
