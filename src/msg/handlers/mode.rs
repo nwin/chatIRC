@@ -7,7 +7,7 @@ use channel::util::{AnonChannel, InviteOnly, Moderated, MemberOnly,
     VoicePrivilege, ChannelKey, UserLimit, BanMask, ExceptionMask,
     InvitationMask, ChannelCreator
 };
-use channel::util::{Add, Remove, Show};
+use channel::util::{ChannelMode, Action, Add, Remove, Show};
 use msg::RawMessage;
 use msg::util;
 
@@ -21,36 +21,70 @@ pub struct Mode {
     //params: Vec<Vec<u8>>
 }
 impl Mode {
-
+    
+    pub fn broadcast_change(channel: &channel::Channel, nick: &str, action: Action,
+                            flag: ChannelMode, param: Option<&str>) {
+        let flag_str = match action {
+            Add => "+",
+            Remove => "-",
+            Show => ""
+        }.to_string() + (flag as u8 as char).to_string();
+        channel.broadcast(RawMessage::new(cmd::MODE,
+            match param {
+                Some(param) => vec![channel.name(), flag_str.as_slice(), param],
+                None => vec![channel.name(), flag_str.as_slice()]
+            }.as_slice(),
+            Some(nick.as_slice())
+        ))
+    }
     
     /// Handles the channel mode message
-    pub fn handle_mode(channel: &mut channel::Channel, client_id: client::ClientId, message: RawMessage) {
+    pub fn handle_mode(channel: &mut channel::Channel, proxy: client::ClientProxy, message: RawMessage) {
         // TODO broadcast changes
-        let is_op = { match channel.member_with_id(client_id) {
+        // TODO send ERR_UNKNOWNMODE
+        let is_op = { match channel.member_with_id(proxy.id()) {
             Some(member) => member.is_op(),
             None => false
         }};
         let params = message.params();
         if params.len() > 1 {
-            if !is_op { return } // TODO: error message
+            if !is_op { 
+                proxy.send_response(cmd::ERR_CHANOPRIVSNEEDED,
+                    [channel.name(), "You are not a channel operator"], 
+                    proxy.nick().as_slice()
+                );
+                return 
+            }
             channel::modes_do(params.slice_from(1), | action, mode, parameter | {
                 match mode {
                     AnonChannel | InviteOnly | Moderated | MemberOnly 
                     | Quiet | Private | Secret | ReOpFlag | TopicProtect => {
                         match action {
-                            Add => {channel.add_flag(mode);},
-                            Remove => {channel.remove_flag(mode);},
+                            Add => {
+                                channel.add_flag(mode);
+                                Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                            },
+                            Remove => {
+                                channel.remove_flag(mode);
+                                Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                            },
                             Show => {} // ignore
                         }
                         
                     },
                     OperatorPrivilege | VoicePrivilege => {
                         match parameter { Some(name) => {
-                                match channel.mut_member_with_nick(&name.to_string()) {
+                                match channel.mut_member_with_nick(&String::from_utf8_lossy(name).to_string()) {
                                     Some(member) => match action {
-                                        Add => member.promote(mode),
-                                        Remove => member.demote(mode),
-                                        Show => {}
+                                        Add => {
+                                            member.promote(mode);
+                                            Mode::broadcast_change(channel, proxy.nick(), action, mode, Some(member.nick()))
+                                        },
+                                        Remove => {
+                                            member.demote(mode);
+                                            Mode::broadcast_change(channel, proxy.nick(), action, mode, Some(member.nick()))
+                                        },
+                                        Show => {} // make not much sense
                                     }, None => {}
                                 }
                             }, None => {}
@@ -58,17 +92,30 @@ impl Mode {
                     },
                     ChannelKey => match action {
                         Add => if parameter.is_some() {
-                            channel.set_password(parameter.and_then(|v| Some(v.to_vec())))
+                            channel.set_password(parameter.and_then(|v| Some(v.to_vec())));
+                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
                         },
-                        Remove => channel.set_password(None),
+                        Remove => {
+                            channel.set_password(None);
+                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                        },
                         Show => {} // this might not be a good idea
                     },
                     UserLimit => match action {
                         Add => match parameter.and_then(|v| from_str::<uint>(String::from_utf8_lossy(v).as_slice())) {
-                            Some(limit) => channel.set_limit(Some(limit)),
+                            Some(limit) => {
+                                channel.set_limit(Some(limit));
+                                Mode::broadcast_change(
+                                    channel, proxy.nick(), action, mode, 
+                                    Some(limit.to_string().as_slice())
+                                )
+                            },
                             _ => {}
                         },
-                        Remove => channel.set_limit(None),
+                        Remove => {
+                            channel.set_limit(None);
+                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                        },
                         Show => {} // todo show
                     },
                     BanMask | ExceptionMask | InvitationMask => match action {
@@ -109,15 +156,11 @@ impl Mode {
                 }
             });
         } else {
-            let member = match channel.member_with_id(client_id) {
-                Some(member) => member,
-                None => return // todo error message
-            };
-            member.send_response(cmd::RPL_CHANNELMODEIS,
-                [channel.name(), 
-                 ("+".to_string() + channel.flags()
-                 ).as_slice()
-                ]
+            // TODO secret channel??
+            // TODO things with parameters?
+            proxy.send_response(cmd::RPL_CHANNELMODEIS,
+                [channel.name(), ("+".to_string() + channel.flags()).as_slice()],
+                channel.server_name()
             )
         }
     }
@@ -152,9 +195,9 @@ impl super::MessageHandler for Mode {
             util::ChannelName(name) => {
                 match server.channels.find_mut(&name.to_string()) {
                     Some(channel) =>  {
-                        let id = origin.borrow().id();
+                        let proxy = origin.borrow().proxy();
                         channel.send(channel::HandleMut(proc(channel) {
-                            Mode::handle_mode(channel, id, raw)
+                            Mode::handle_mode(channel, proxy, raw)
                         }))
                     },
                     None => origin

@@ -58,7 +58,8 @@ impl ChannelMode {
     fn has_parameter(&self) -> bool {
         match *self {
             ChannelKey | UserLimit | BanMask
-            | ExceptionMask | InvitationMask => true,
+            | ExceptionMask | InvitationMask
+            | OperatorPrivilege | VoicePrivilege => true,
             _ => false
         }
     }
@@ -124,7 +125,7 @@ pub type Flags = HashSet<ChannelMode>;
 
 #[cfg(test)]
 mod tests {
-	use super::{modes_do, BanMask, ExceptionMask, Add, Show};
+	use super::{modes_do, OperatorPrivilege, BanMask, ExceptionMask, Add, Remove, Show};
     use msg::{RawMessage};
 	/// Tests the mode parser
     
@@ -136,6 +137,7 @@ mod tests {
             b"MODE &oulu +b *!*@*.edu +e *!*@*.bu.edu",
             b"MODE #bu +be *!*@*.edu *!*@*.bu.edu",
             b"MODE #bu b",
+            b"MODE #test -oo Guest",
             //b"MODE #bu /i", // Invalid mode should be skipped
             b"MODE #bu +g", // Invalid mode should be skipped
         ];
@@ -145,6 +147,8 @@ mod tests {
             vec![(Add, BanMask, Some(b"*!*@*.edu")),
             (Add, ExceptionMask, Some(b"*!*@*.bu.edu"))],
             vec![(Show, BanMask, None)],
+            vec![(Remove, OperatorPrivilege, Some(b"Guest")),
+            (Remove, OperatorPrivilege, None)],
             //Vec::new(),
             Vec::new(),
         ];
