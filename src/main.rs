@@ -17,7 +17,6 @@ use server::{run_server};
 // pub only for documentation purposes
 pub mod client;
 pub mod server;
-#[allow(dead_code)]
 pub mod channel;
 pub mod msg;
 pub mod cmd;

@@ -53,7 +53,7 @@ pub enum Event {
 pub struct Channel {
     name: String,
     server_name: String,
-    topic: String,
+    topic: Vec<u8>,
     password: Option<Vec<u8>>,
     flags: Flags,
     limit: Option<uint>,
@@ -69,7 +69,7 @@ impl Channel {
         Channel {
             name: name,
             server_name: server_name,
-            topic: "".to_string(),
+            topic: b"".to_vec(),
             password: None,
             flags: HashSet::new(),
             limit: None,
@@ -91,11 +91,7 @@ impl Channel {
                 this.dispatch(event)
             }
         });
-        Proxy {
-            name: name,
-            tx: tx,
-            server_tx: server_tx
-        }
+        Proxy::new(name, tx, server_tx)
     }
 
     /// Message dispatcher
@@ -119,6 +115,16 @@ impl Channel {
     /// Getter for server name
     pub fn server_name(&self) -> &str {
         self.name.as_slice()
+    }
+    
+    /// Getter for topic
+    pub fn topic(&self) -> &[u8] {
+        self.topic.as_slice()
+    }
+    
+    /// Setter for topic
+    pub fn set_topic(&mut self, topic: Vec<u8>) {
+        self.topic = topic
     }
     
     /// Getter for the user limit

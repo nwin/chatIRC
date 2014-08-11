@@ -12,6 +12,7 @@ mod join;
 mod part;
 mod mode;
 mod lists;
+mod simple;
 mod ping_pong;
 
 macro_rules! handle {
@@ -43,6 +44,7 @@ handle!{
     WHO with self::lists::Who;
     MODE with self::mode::Mode;
     JOIN with self::join::Join;
+    TOPIC with self::simple::Topic;
     PART with self::part::Part;
     QUIT with self::part::Quit;
     NICK with self::registration::Nick;

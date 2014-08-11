@@ -47,6 +47,7 @@ commands!{
     PING        #[doc = "`PING` command"];
     WHO         #[doc = "`WHO` command"];
     NAMES       #[doc = "`NAMES` command"];
+    TOPIC       #[doc = "`TOPIC` command"];
     PART        #[doc = "`PART` command"];
     QUIT        #[doc = "`QUIT` command"];
     PONG        #[doc = "`PONG` command"];

@@ -99,6 +99,9 @@ impl ClientProxy {
     pub fn update_nick(&mut self, nick: String) {
         self.nick = nick
     }
+    pub fn nick(&self) -> &str {
+        self.nick.as_slice()
+    }
 }
 
 
