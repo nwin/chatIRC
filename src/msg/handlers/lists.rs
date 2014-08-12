@@ -7,7 +7,6 @@ use msg::util;
 
 use server::{Server};
 use client::{SharedClient, ClientProxy};
-
 /// Handles the WHO message
 /// The reply consists of two parts:
 /// 
@@ -38,9 +37,13 @@ impl Who {
             // Don't give information about this channel to the outside
             // this should also be ok for secret because RPL_ENDOFWHO is
             // always sent.
+            channel.send_response(&client, cmd::RPL_ENDOFWHO, [
+                self.mask.as_slice(), "End of WHO list"
+            ]);
         } else {
+            let sender = channel.list_sender(&client, cmd::RPL_WHOREPLY, cmd::RPL_ENDOFWHO);
             for member in channel.members() {
-                channel.send_response(&client, cmd::RPL_WHOREPLY, [
+                sender.feed_line(&[
                     channel.name(),
                     member.username(),
                     member.hostname(),
@@ -55,9 +58,6 @@ impl Who {
                 ]);
             }
         }
-        channel.send_response(&client, cmd::RPL_ENDOFWHO, [
-            self.mask.as_slice(), "End of WHO list"
-        ]);
     }
 }
 impl super::MessageHandler for Who {

@@ -267,4 +267,39 @@ impl Channel {
             member.send_msg(message.clone())
         }
     }
+    pub fn list_sender<'a>(&'a self, receiver: &'a ClientProxy, list_code: cmd::ResponseCode,
+    end_code: cmd::ResponseCode) -> ListSender {
+        ListSender {
+            receiver: receiver,
+            list_code: list_code,
+            end_code: end_code,
+            name: self.name(),
+            server_name: self.server_name()
+        }
+    }
+}
+pub struct ListSender<'a> {
+    receiver: &'a ClientProxy,
+    list_code: cmd::ResponseCode,
+    end_code: cmd::ResponseCode,
+    name: &'a str,
+    server_name: &'a str
+}
+impl<'a> ListSender<'a> {
+    pub fn feed_line(&self, line: &[&str]) {
+        self.receiver.send_response(
+            self.list_code, 
+            vec![self.name].append(line.as_slice()).as_slice(),
+            self.server_name
+        )
+    }
+    pub fn finish(self) {
+        drop(self)
+    }
+}
+#[unsafe_destructor]
+impl<'a> Drop for ListSender<'a> {
+    fn drop(&mut self) {
+        self.receiver.send_response(self.end_code, [self.name], self.server_name)
+    }
 }
