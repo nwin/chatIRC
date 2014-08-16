@@ -57,6 +57,7 @@ impl Who {
                     format!("0 {}", member.realname()).as_slice()
                 ]);
             }
+            sender.end_of_list()
         }
     }
 }
