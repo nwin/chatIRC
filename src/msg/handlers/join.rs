@@ -52,7 +52,6 @@ impl Join {
             [this.name(), "No topic set."]
         );
         super::lists::Names::handle_names(this, member.proxy());
-        //this.handle_names(member.proxy());
         if this.member_count() == 1 { // first user
             let msg = RawMessage::new(cmd::MODE, [
                 this.name(),
