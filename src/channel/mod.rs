@@ -205,6 +205,21 @@ impl Channel {
         self.invite_masks.remove(&mask)
     }
     
+    /// Getter for the ban masks
+    pub fn ban_masks(&self) -> &HashSet<HostMask> {
+        &self.ban_masks
+    }
+    
+    /// Getter for the ban masks
+    pub fn except_masks(&self) -> &HashSet<HostMask> {
+        &self.except_masks
+    }
+    
+    /// Getter for the ban masks
+    pub fn invite_masks(&self) -> &HashSet<HostMask> {
+        &self.invite_masks
+    }
+    
     /// Adds a member to the channel
     pub fn add_member(&mut self, member: Member) -> bool {
         if self.member_with_id(member.id()).is_some() {
@@ -278,6 +293,8 @@ impl Channel {
         }
     }
 }
+
+/// Helper struct to send list replies
 pub struct ListSender<'a> {
     receiver: &'a ClientProxy,
     list_code: cmd::ResponseCode,
@@ -286,6 +303,9 @@ pub struct ListSender<'a> {
     server_name: &'a str
 }
 impl<'a> ListSender<'a> {
+    /// Sends a list item to the sender
+    ///
+    /// The sender prepends the list item with the channel name.
     pub fn feed_line(&self, line: &[&str]) {
         self.receiver.send_response(
             self.list_code, 
@@ -293,7 +313,10 @@ impl<'a> ListSender<'a> {
             self.server_name
         )
     }
-    pub fn finish(self) {
+    /// Tells the sender that there are no more items in the list
+    ///
+    /// Note: this happens automatically when the sender is dropped.
+    pub fn end_of_list(self) {
         drop(self)
     }
 }

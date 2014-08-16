@@ -126,6 +126,11 @@ impl HostMask {
     pub fn nick(&self) -> Option<&str> {
         self.mask.as_slice().split('!').nth(0)
     }
+    
+    /// Returns a view into the mask
+    pub fn as_str(&self) -> &str {
+        return self.mask.as_slice()
+    }
 }
 
 #[cfg(test)]

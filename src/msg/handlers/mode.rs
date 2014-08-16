@@ -118,34 +118,58 @@ impl Mode {
                         },
                         Show => {} // todo show
                     },
-                    BanMask | ExceptionMask | InvitationMask => match action {
-                        Show => {}, // TODO handle show
-                        _ => match parameter { 
-                            Some(mask) => {
-                                let host_mask = util::HostMask::new(
-                                    String::from_utf8_lossy(mask).to_string()
-                                );
-                                match mode {
-                                    BanMask => match action {
-                                        Add => {channel.add_ban_mask(host_mask);},
-                                        Remove => {channel.remove_ban_mask(host_mask);},
-                                        Show => {} // handled above
-                                    },
-                                    ExceptionMask => match action {
-                                        Add => {channel.add_except_mask(host_mask);},
-                                        Remove => {channel.remove_except_mask(host_mask);},
-                                        Show => {} // handled above
-                                    },
-                                    InvitationMask => match action {
-                                        Add => {channel.add_invite_mask(host_mask);},
-                                        Remove => {channel.remove_invite_mask(host_mask);},
-                                        Show => {} // handled above
-                                    },
-                                    _ => unreachable!()
-                                }
-                            },
-                            None => {}
+                    BanMask | ExceptionMask | InvitationMask => match parameter { 
+                        Some(mask) => {
+                            let host_mask = util::HostMask::new(
+                                String::from_utf8_lossy(mask).to_string()
+                            );
+                            match mode {
+                                BanMask => match action {
+                                    Add => {channel.add_ban_mask(host_mask);},
+                                    Remove => {channel.remove_ban_mask(host_mask);},
+                                    Show => {} // handled above
+                                },
+                                ExceptionMask => match action {
+                                    Add => {channel.add_except_mask(host_mask);},
+                                    Remove => {channel.remove_except_mask(host_mask);},
+                                    Show => {} // handled above
+                                },
+                                InvitationMask => match action {
+                                    Add => {channel.add_invite_mask(host_mask);},
+                                    Remove => {channel.remove_invite_mask(host_mask);},
+                                    Show => {} // handled above
+                                },
+                                _ => unreachable!()
+                            }
+                        },
+                        None => {
+                            let (start_code, end_code, masks) = match mode {
+                                BanMask => (
+                                    cmd::RPL_BANLIST,
+                                    cmd::RPL_ENDOFBANLIST,
+                                    channel.ban_masks()
+                                ),
+                                ExceptionMask => (
+                                    cmd::RPL_EXCEPTLIST,
+                                    cmd::RPL_ENDOFEXCEPTLIST,
+                                    channel.except_masks()
+                                ),
+                                InvitationMask => (
+                                    cmd::RPL_INVITELIST,
+                                    cmd::RPL_ENDOFINVITELIST,
+                                    channel.invite_masks()
+                                ),
+                                _ => unreachable!()
+                            };
+                            let sender = channel.list_sender(
+                                &proxy, start_code, end_code
+                            );
+                            for mask in masks.iter() {
+                                sender.feed_line(&[mask.as_str()])
+                            }
+                            sender.end_of_list()
                         }
+                        
                     },
                     ChannelCreator => {
                         match action {
