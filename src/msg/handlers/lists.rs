@@ -126,9 +126,9 @@ impl super::MessageHandler for Names {
         }
     }
     fn invoke(self, server: &mut Server, origin: SharedClient) {
-        for &recv in self.receivers.iter() {
+        for recv in self.receivers.iter() {
             match recv {
-                util::ChannelName(ref name) => {
+                &util::ChannelName(ref name) => {
                     match server.channels.find_mut(&name.to_string()) {
                         Some(channel) => { 
                             let proxy = origin.borrow().proxy();

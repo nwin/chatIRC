@@ -74,21 +74,26 @@ impl Mode {
                     },
                     OperatorPrivilege | VoicePrivilege => {
                         match parameter { Some(name) => {
-                                match channel.mut_member_with_nick(&String::from_utf8_lossy(name).to_string()) {
-                                    Some(member) => match action {
-                                        Add => {
-                                            member.promote(mode);
-                                            Mode::broadcast_change(channel, proxy.nick(), action, mode, Some(member.nick()))
-                                        },
-                                        Remove => {
-                                            member.demote(mode);
-                                            Mode::broadcast_change(channel, proxy.nick(), action, mode, Some(member.nick()))
-                                        },
-                                        Show => {} // make not much sense
-                                    }, None => {}
-                                }
-                            }, None => {}
-                        }
+                            let nick = match channel.mut_member_with_nick(&String::from_utf8_lossy(name).to_string()) {
+                                Some(member) => match action {
+                                    Add => {
+                                        member.promote(mode);
+                                        Some(member.nick().to_string())
+                                    },
+                                    Remove => {
+                                        member.demote(mode);
+                                        Some(member.nick().to_string())
+                                    },
+                                    Show => None // make not much sense
+                                }, None => None
+                            };
+                            match nick {
+                                Some(nick) => Mode::broadcast_change(
+                                    channel, proxy.nick(), action, mode, Some(nick.as_slice())
+                                ),
+                                None => {}
+                            }
+                        }, None => {}}
                     },
                     ChannelKey => match action {
                         Add => if parameter.is_some() {
