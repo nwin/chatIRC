@@ -26,9 +26,12 @@ pub fn do_quit_leave(channel: &mut channel::Channel, client: client::ClientProxy
             channel.broadcast(msg);
             channel.remove_member(&client.id());
         },
-        None => channel.send_response(&client, cmd::ERR_NOTONCHANNEL,
+        // This error message makes only sense for the part command
+        None if command == cmd::PART => channel.send_response(
+            &client, cmd::ERR_NOTONCHANNEL,
             [channel.name(), "You are not on this channel."]
-        )
+        ),
+        _ => {}
     }
 }
 /// Handles the PART command

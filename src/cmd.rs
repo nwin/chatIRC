@@ -5,7 +5,7 @@ macro_rules! commands {
         #[$doc:meta];
     )*} => {
         /// Enumeration of all supported IRC commands (mainly RFC1459)
-        #[deriving(Show)]
+        #[deriving(Show, PartialEq)]
         pub enum Command<'a> {
             $(#[$doc] $ident,)*
             /// Numeric reply codes, see `ResponseCode`
@@ -57,7 +57,7 @@ commands!{
 
 
 #[allow(non_camel_case_types)] 
-#[deriving(Show)]
+#[deriving(Show, PartialEq)]
 pub enum ResponseCode {
     RPL_WELCOME = 001,
     RPL_YOURHOST = 002,
