@@ -63,6 +63,11 @@ impl Member {
         self.update_decorated_nick();
     }
     
+    /// User channel flags as a string
+    pub fn flags(&self) -> String {
+        self.flags.iter().map( |c| *c as u8 as char).collect() 
+    }
+    
     /// Checks whether a member has a certain privilege
     fn has_privilege(&self, privilege: ChannelMode) -> bool {
         self.flags.contains(&privilege)

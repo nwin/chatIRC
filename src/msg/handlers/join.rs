@@ -18,46 +18,54 @@ pub struct Join {
 }
 
 impl Join {
-    fn handle_join(this: &mut channel::Channel, mut member: channel::Member, password: Option<Vec<u8>>) {
-        match this.password() {
+    fn handle_join(channel: &mut channel::Channel, mut member: channel::Member, password: Option<Vec<u8>>) {
+        match channel.password() {
             &Some(ref chan_pass) => if !match password { 
                     Some(password) => &password == chan_pass,
                     None => false } {
                 member.send_response(cmd::ERR_BADCHANNELKEY,
-                    [this.name(),
+                    [channel.name(),
                     "Password is wrong"]
                 );
                 return
             },
             &None => {},
         }
-        if this.member_with_id(member.id()).is_some() {
+        if channel.member_with_id(member.id()).is_some() {
             //member already in channel
             return
         }
         let msg = RawMessage::new(
             cmd::JOIN, 
-            &[this.name()],
+            &[channel.name()],
             Some(member.nick())
         );
-        if this.member_count() == 0 { // first user
+        if channel.member_count() == 0 { // first user
             member.promote(ChannelCreator);
             member.promote(OperatorPrivilege);
         }
         let id = member.id().clone();
-        let _ = this.add_member(member);
-        this.broadcast(msg);
-        let member = this.member_with_id(id).unwrap();
+        let _ = channel.add_member(member);
+        channel.broadcast(msg);
+        let member = channel.member_with_id(id).unwrap();
         member.send_response(cmd::RPL_NOTOPIC, 
-            [this.name(), "No topic set."]
+            [channel.name(), "No topic set."]
         );
-        super::lists::Names::handle_names(this, member.proxy());
-        if this.member_count() == 1 { // first user
+        super::lists::Names::handle_names(channel, member.proxy());
+        if channel.member_count() == 1 { // first user
+            // broadcast initial channel mode
             let msg = RawMessage::new(cmd::MODE, [
-                this.name(),
-                format!("+{}", member.decoration()).as_slice(), 
-                member.nick()], Some(this.server_name()));
-            this.broadcast(msg)
+                channel.name(),
+                format!("+{}", channel.flags()).as_slice(), 
+            ], Some(channel.server_name()));
+            channel.broadcast(msg);
+            // broadcast op rights for first user
+            let msg = RawMessage::new(cmd::MODE, [
+                channel.name(),
+                format!("+{}", member.flags()).as_slice(), 
+                member.nick()], Some(channel.server_name())
+            );
+            channel.broadcast(msg)
         }
     }
 }

@@ -81,7 +81,7 @@ impl Server {
                         None => error!(
                             "Client {} not found when sending message.",
                             client_id
-                        )
+                        ) // The user is not registered yet
                     }
                 },
                 ClientConnected(mut client) => { 
