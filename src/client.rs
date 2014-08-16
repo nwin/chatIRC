@@ -252,7 +252,7 @@ impl PartialEq for Client {
 }
 
 impl Eq for Client {}
-    
+
 mod net {
 
     use std::io::net::ip::{SocketAddr, Ipv4Addr, Ipv6Addr};
@@ -270,6 +270,53 @@ mod net {
                        host: *mut c_char, hostlen: socklen_t, 
                        serv: *mut c_char, servlen: socklen_t, 
                        flags: c_int) -> c_int;
+    }
+    
+    
+
+    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "android")]
+    fn new_sockaddr_in(port: u16, addr: in_addr) -> sockaddr_in {
+        sockaddr_in {
+            sin_family: AF_INET as u16,
+            sin_port: port,
+            sin_addr: addr,
+            sin_zero: [0, ..8]
+        }
+    }
+    #[cfg(target_os = "macos")]
+    fn new_sockaddr_in(port: u16, addr: in_addr) -> sockaddr_in {
+        sockaddr_in {
+            sin_len: size_of::<sockaddr_in>() as u8,
+            sin_family: AF_INET as u8,
+            sin_port: port,
+            sin_addr: addr,
+            sin_zero: [0, ..8]
+        }
+    }
+    
+
+    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "android")]
+    fn new_sockaddr_in6(port: u16, addr: in6_addr) -> sockaddr_in6 {
+        sockaddr_in6 {
+            sin6_family: AF_INET6 as u16,
+            sin6_port: port,
+            sin6_flowinfo: 0,
+            sin6_addr: addr,
+            sin6_scope_id: 0,
+        }
+    }
+    #[cfg(target_os = "macos")]
+    fn new_sockaddr_in6(port: u16, addr: in6_addr) -> sockaddr_in6 {
+        sockaddr_in6 {
+            sin6_len: size_of::<sockaddr_in6>() as u8,
+            sin6_family: AF_INET6 as u8,
+            sin6_port: port,
+            sin6_flowinfo: 0,
+            sin6_addr: addr,
+            sin6_scope_id: 0,
+        }
     }
 
     //static NI_NUMERICHOST: c_int = 0x00000002;
@@ -291,28 +338,16 @@ mod net {
                               | c as u32 << 8 
                               | d as u32
                     };
-                    let sockaddr = sockaddr_in {
-                        sin_len: size_of::<sockaddr_in>() as u8,
-                        sin_family: AF_INET as u8,
-                        sin_port: port,
-                        sin_addr: addr,
-                        sin_zero: [0, ..8]
-                    };
-                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in>() as i32, 
+                    let sockaddr = new_sockaddr_in(port, addr);
+                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in>() as socklen_t, 
                                 buf, hostlen, transmute(0u), 0, 0)
                 },
                 Ipv6Addr(a, b, c, d, e, f, g, h) => {
-                    let sockaddr = sockaddr_in6 {
-                        sin6_len: size_of::<sockaddr_in6>() as u8,
-                        sin6_family: AF_INET6 as u8,
-                        sin6_port: port,
-                        sin6_flowinfo: 0,
-                        sin6_addr: in6_addr {
-                            s6_addr: [a, b, c, d, e, f, g, h]
-                        },
-                        sin6_scope_id: 0,
+                    let addr = in6_addr {
+                        s6_addr: [a, b, c, d, e, f, g, h]
                     };
-                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in6>() as i32, 
+                    let sockaddr = new_sockaddr_in6(port, addr);
+                    getnameinfo(transmute(&sockaddr), size_of::<sockaddr_in6>() as socklen_t, 
                                 buf, hostlen, transmute(0u), 0, 0)
                 },
             }
