@@ -1,13 +1,13 @@
 use cmd;
 use channel;
-use channel::util::{ChannelCreator, OperatorPrivilege, TopicProtect, MemberOnly};
+use channel::util::{InviteOnly, ChannelCreator, OperatorPrivilege, TopicProtect, MemberOnly, UserLimit};
 use msg::RawMessage;
 use msg::util;
 
 use server::{Server};
 use client::SharedClient;
 
-/// Handles the JOIN command
+/// Handles the JOIN command.
 ///
 ///    Command: JOIN
 /// Parameters: <channel>{,<channel>} [<key>{,<key>}]
@@ -25,34 +25,72 @@ impl Join {
                     None => false } {
                 member.send_response(cmd::ERR_BADCHANNELKEY,
                     [channel.name(),
-                    "Password is wrong"]
+                    "Cannot join channel (+k)"]
                 );
                 return
             },
             &None => {},
         }
         if channel.member_with_id(member.id()).is_some() {
-            //member already in channel
+            // Member already in channel
             return
         }
+        if member.mask_matches_any(channel.ban_masks()) 
+           && !member.mask_matches_any(channel.except_masks()) {
+            // Member banned
+            channel.send_response(
+                member.proxy(), 
+                cmd::ERR_BANNEDFROMCHAN, 
+                &["Cannot join channel (+b)"]
+            );
+            return
+        }
+        if channel.has_flag(InviteOnly) 
+           && !member.mask_matches_any(channel.invite_masks()) {
+            // Member not invited
+            channel.send_response(
+                member.proxy(), 
+                cmd::ERR_INVITEONLYCHAN, 
+                &["Cannot join channel (+i)"]
+            );
+            return
+        }
+        if channel.has_flag(UserLimit)
+           && channel.limit().map_or(false, |limit| channel.member_count() + 1 >= limit) {
+            // User limit reached
+            channel.send_response(
+                member.proxy(), 
+                cmd::ERR_CHANNELISFULL, 
+                &["Cannot join channel (+l)"]
+            );
+            return
+        }
+        // Give op to first user
+        if channel.member_count() == 0 {
+            member.promote(ChannelCreator);
+            member.promote(OperatorPrivilege);
+        }
+        
+        // Broadcast that a new member joined the channel and add him
         let msg = RawMessage::new(
             cmd::JOIN, 
             &[channel.name()],
             Some(member.nick())
         );
-        if channel.member_count() == 0 { // first user
-            member.promote(ChannelCreator);
-            member.promote(OperatorPrivilege);
-        }
         let id = member.id().clone();
         let _ = channel.add_member(member);
         channel.broadcast(msg);
+        
+        // Topic reply
         let member = channel.member_with_id(id).unwrap();
         member.send_response(cmd::RPL_NOTOPIC, 
             [channel.name(), "No topic set."]
         );
+        // Send name list as per RFC
         super::lists::Names::handle_names(channel, member.proxy());
-        if channel.member_count() == 1 { // first user
+
+        // Tell the first user that he is op and which flags the channel has
+        if channel.member_count() == 1 {
             // broadcast initial channel mode
             let msg = RawMessage::new(cmd::MODE, [
                 channel.name(),

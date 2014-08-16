@@ -95,6 +95,16 @@ impl Member {
         || self.has_privilege(OperatorPrivilege) 
     }
     
+    /// Checks if any of members host mask matches any in the given set
+    pub fn mask_matches_any(&self, masks: &HashSet<HostMask>) -> bool {
+        for mask in masks.iter() {
+            if mask.matches(self.mask.as_str()) {
+                return true
+            }
+        }
+        false
+    }
+    
     /// Updates the cached decorated nick
     fn update_decorated_nick(&mut self) {
         self.decorated_nick = self.decoration().append(self.nick())
