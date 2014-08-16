@@ -1,6 +1,7 @@
 # chätIRC
 
-IRC server written in Rust
+IRC server written in Rust [![Build Status](https://travis-ci.org/nwin/chatIRC.svg)](https://travis-ci.org/nwin/chatIRC)
+
 
 Run `make debug` to run the testserver, which is **not** ready for production.
 
