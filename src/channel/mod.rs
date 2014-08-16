@@ -114,7 +114,7 @@ impl Channel {
     
     /// Getter for server name
     pub fn server_name(&self) -> &str {
-        self.name.as_slice()
+        self.server_name.as_slice()
     }
     
     /// Getter for topic
