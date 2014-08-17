@@ -5,7 +5,7 @@ use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::{SharedClient, ClientProxy};
+use con::{Peer};
 
 pub struct Topic {
     raw: RawMessage,
@@ -14,7 +14,7 @@ pub struct Topic {
 }
 
 impl Topic {
-    fn set(channel: &mut channel::Channel, proxy: ClientProxy, topic: Vec<u8>) {
+    fn set(channel: &mut channel::Channel, proxy: Peer, topic: Vec<u8>) {
         let set_topic = match channel.member_with_id(proxy.id()) {
             Some(member) => {
                 if channel.has_flag(TopicProtect) && !member.is_op() {
@@ -67,16 +67,17 @@ impl super::MessageHandler for Topic {
             ], None))
         }
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        let host = server.host().to_string(); // clone due to #6393
         match server.channels.find_mut(&self.channel) {
             Some(channel) => {
-                let proxy = origin.borrow().proxy();
                 channel.send(channel::HandleMut(proc(channel) {
-                    Topic::set(channel, proxy, self.topic)
+                    Topic::set(channel, origin, self.topic)
                 }))
             },
-            None => origin.borrow_mut().send_response(cmd::ERR_NOSUCHCHANNEL,
-                Some(self.channel.as_slice()), Some("No such channel")
+            None => origin.send_response(cmd::ERR_NOSUCHCHANNEL,
+                &[self.channel.as_slice(), "No such channel"],
+                host.as_slice()
             )   
         }
     }
