@@ -10,7 +10,7 @@ mod registration;
 //mod msg;
 //mod join;
 //mod part;
-//mod mode;
+mod mode;
 //mod lists;
 mod simple;
 mod ping_pong;
@@ -43,7 +43,7 @@ handle!{
     //PRIVMSG with self::msg::Privmsg;
     //NAMES with self::lists::Names;
     //WHO with self::lists::Who;
-    //MODE with self::mode::Mode;
+    MODE with self::mode::Mode;
     //JOIN with self::join::Join;
     TOPIC with self::simple::Topic;
     //PART with self::part::Part;

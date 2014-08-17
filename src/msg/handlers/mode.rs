@@ -1,6 +1,5 @@
 use cmd;
-use client;
-use client::SharedClient;
+use con::Peer;
 use channel;
 use channel::util::{AnonChannel, InviteOnly, Moderated, MemberOnly,
     Quiet, Private, Secret, ReOpFlag, TopicProtect, OperatorPrivilege,
@@ -39,19 +38,20 @@ impl Mode {
     }
     
     /// Handles the channel mode message
-    pub fn handle_mode(channel: &mut channel::Channel, proxy: client::ClientProxy, message: RawMessage) {
+    pub fn handle_mode(channel: &mut channel::Channel, proxy: Peer, message: RawMessage) {
         // TODO broadcast changes
         // TODO send ERR_UNKNOWNMODE
         let is_op = { match channel.member_with_id(proxy.id()) {
             Some(member) => member.is_op(),
             None => false
         }};
+        let peer_nick: String = proxy.info().read().nick().clone();
         let params = message.params();
         if params.len() > 1 {
             if !is_op { 
                 proxy.send_response(cmd::ERR_CHANOPRIVSNEEDED,
                     [channel.name(), "You are not a channel operator"], 
-                    proxy.nick().as_slice()
+                    peer_nick.as_slice().as_slice()
                 );
                 return 
             }
@@ -62,11 +62,11 @@ impl Mode {
                         match action {
                             Add => {
                                 channel.add_flag(mode);
-                                Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                                Mode::broadcast_change(channel, peer_nick.as_slice(), action, mode, None)
                             },
                             Remove => {
                                 channel.remove_flag(mode);
-                                Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                                Mode::broadcast_change(channel, peer_nick.as_slice(), action, mode, None)
                             },
                             Show => {} // ignore
                         }
@@ -89,7 +89,7 @@ impl Mode {
                             };
                             match nick {
                                 Some(nick) => Mode::broadcast_change(
-                                    channel, proxy.nick(), action, mode, Some(nick.as_slice())
+                                    channel, peer_nick.as_slice(), action, mode, Some(nick.as_slice())
                                 ),
                                 None => {}
                             }
@@ -98,11 +98,11 @@ impl Mode {
                     ChannelKey => match action {
                         Add => if parameter.is_some() {
                             channel.set_password(parameter.and_then(|v| Some(v.to_vec())));
-                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                            Mode::broadcast_change(channel, peer_nick.as_slice(), action, mode, None)
                         },
                         Remove => {
                             channel.set_password(None);
-                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                            Mode::broadcast_change(channel, peer_nick.as_slice(), action, mode, None)
                         },
                         Show => {} // this might not be a good idea
                     },
@@ -111,7 +111,7 @@ impl Mode {
                             Some(limit) => {
                                 channel.set_limit(Some(limit));
                                 Mode::broadcast_change(
-                                    channel, proxy.nick(), action, mode, 
+                                    channel, peer_nick.as_slice(), action, mode, 
                                     Some(limit.to_string().as_slice())
                                 )
                             },
@@ -119,7 +119,7 @@ impl Mode {
                         },
                         Remove => {
                             channel.set_limit(None);
-                            Mode::broadcast_change(channel, proxy.nick(), action, mode, None)
+                            Mode::broadcast_change(channel, peer_nick.as_slice(), action, mode, None)
                         },
                         Show => {} // todo show
                     },
@@ -218,22 +218,21 @@ impl super::MessageHandler for Mode {
             ], None))
         }
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        let host = server.host().to_string(); // clone due to #6393
         let raw = self.raw;
         match self.receiver {
             util::ChannelName(name) => {
                 match server.channels.find_mut(&name.to_string()) {
                     Some(channel) =>  {
-                        let proxy = origin.borrow().proxy();
                         channel.send(channel::HandleMut(proc(channel) {
-                            Mode::handle_mode(channel, proxy, raw)
+                            Mode::handle_mode(channel, origin, raw)
                         }))
                     },
-                    None => origin
-                        .borrow_mut().send_response(cmd::ERR_NOSUCHCHANNEL,
-                            Some(name.as_slice()), Some("No such channel"))
-                    
-                    
+                    None => origin.send_response(cmd::ERR_NOSUCHCHANNEL,
+                            &[name.as_slice(), "No such channel"],
+                            host.as_slice()
+                    )
                 }
             },
             _ => error!("user modes not supported yet")
