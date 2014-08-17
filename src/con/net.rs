@@ -1,5 +1,5 @@
 use std::io::net::ip::{SocketAddr, Ipv4Addr, Ipv6Addr};
-use libc::{malloc, sockaddr, sockaddr_in, sockaddr_in6, in_addr, in6_addr, c_int, c_char, socklen_t, AF_INET, AF_INET6};
+use libc::{size_t, malloc, sockaddr, sockaddr_in, sockaddr_in6, in_addr, in6_addr, c_int, c_char, socklen_t, AF_INET, AF_INET6};
 use std::mem::{size_of, transmute};
 use std::string;
 
@@ -72,7 +72,7 @@ pub fn get_nameinfo(peer_socket: SocketAddr) -> String {
     let buf: *mut i8;
     let _ = unsafe {
         let hostlen = 80;
-        buf = transmute(malloc(hostlen as u64 + 1));
+        buf = transmute(malloc(hostlen as size_t + 1));
         match ip {
             Ipv4Addr(a, b, c, d) => {
                 let addr = in_addr {
