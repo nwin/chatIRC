@@ -7,11 +7,11 @@ use server::{Server};
 use super::{RawMessage};
 
 mod registration;
-//mod msg;
-//mod join;
-//mod part;
+mod msg;
+mod join;
+mod part;
 mod mode;
-//mod lists;
+mod lists;
 mod simple;
 mod ping_pong;
 
@@ -33,21 +33,20 @@ pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Ra
         UNKNOWN(_) => {
             let t: Result<Box<ExtensionHandler>, RawMessage> = MessageHandler::from_message(message);
             t.map(|v| v as Box<MessageHandler + Send>)
-        },
-        _ => fail!()
+        }
     }
 }
 }}
 
 handle!{
-    //PRIVMSG with self::msg::Privmsg;
-    //NAMES with self::lists::Names;
-    //WHO with self::lists::Who;
+    PRIVMSG with self::msg::Privmsg;
+    NAMES with self::lists::Names;
+    WHO with self::lists::Who;
     MODE with self::mode::Mode;
-    //JOIN with self::join::Join;
+    JOIN with self::join::Join;
     TOPIC with self::simple::Topic;
-    //PART with self::part::Part;
-    //QUIT with self::part::Quit;
+    PART with self::part::Part;
+    QUIT with self::part::Quit;
     NICK with self::registration::Nick;
     USER with self::registration::User;
     PING with self::ping_pong::Ping;

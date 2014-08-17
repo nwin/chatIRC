@@ -6,7 +6,7 @@ use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::{SharedClient, ClientId};
+use con::{Peer, PeerId};
 
 /// handles private messages
 #[allow(dead_code)]
@@ -17,7 +17,7 @@ pub struct Privmsg {
 }
 impl Privmsg {
     
-    pub fn handle_privmsg(channel: &Channel, client_id: ClientId, message: RawMessage) {
+    pub fn handle_privmsg(channel: &Channel, client_id: PeerId, message: RawMessage) {
         let maybe_member = channel.member_with_id(client_id);
         if channel.has_flag(MemberOnly) || channel.has_flag(VoicePrivilege) {
             match maybe_member {
@@ -66,13 +66,13 @@ impl super::MessageHandler for Privmsg {
             ], None))
         }
     }
-    fn invoke(mut self, server: &mut Server, origin: SharedClient) {
-        self.raw.set_prefix(origin.borrow().nickname.as_slice());
+    fn invoke(mut self, server: &mut Server, origin: Peer) {
+        self.raw.set_prefix(origin.info().read().nick().as_slice());
         for receiver in self.receiver.move_iter() {
             match receiver {
                 util::ChannelName(name) => match server.channels.find_mut(&name.to_string()) {
                     Some(channel) => {
-                        let id = origin.borrow().id();
+                        let id = origin.id();
                         let message = self.raw.clone();
                         channel.send(channel::Handle(proc(channel) {
                             Privmsg::handle_privmsg(channel, id, message)
@@ -80,9 +80,9 @@ impl super::MessageHandler for Privmsg {
                     },
                     None => {}
                 },
-                util::NickName(nick) => match server.registered.find_mut(&nick.to_string()) {
+                util::NickName(nick) => match server.find_peer(&nick.to_string()) {
                     Some(client) => {
-                        client.borrow_mut().send_msg(self.raw.clone());
+                        client.send_msg(self.raw.clone());
                     },
                     None => {}
                 },

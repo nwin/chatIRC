@@ -1,15 +1,14 @@
 use cmd;
-use client;
 use channel;
 use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::SharedClient;
+use con::Peer;
 
 
 /// Handles the quit/part event
-pub fn do_quit_leave(channel: &mut channel::Channel, client: client::ClientProxy,
+pub fn do_quit_leave(channel: &mut channel::Channel, client: Peer,
                     command: cmd::Command, reason: Option<Vec<u8>>) {
     let nick = channel.member_with_id(client.id()).map(|v| v.nick().to_string());
     match nick {
@@ -68,19 +67,21 @@ impl super::MessageHandler for Part {
             ], None))
         }
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        let host = server.host().to_string(); // clone due to #6393
         for channel_name in self.channels.iter() {
             match server.channels.find_mut(channel_name) {
                 Some(channel) => {
                     let reason = self.reason.clone();
-                    let proxy = origin.borrow().proxy();
+                    let proxy = origin.clone();
                     channel.send(channel::HandleMut(proc(channel) {
                         do_quit_leave(channel, proxy, cmd::PART, reason)
                     }))
                 },
-                None => origin
-                    .borrow_mut().send_response(cmd::ERR_NOSUCHCHANNEL,
-                        Some(channel_name.as_slice()), Some("No such channel"))
+                None => origin.send_response(cmd::ERR_NOSUCHCHANNEL,
+                    &[channel_name.as_slice(), "No such channel"],
+                    host.as_slice()
+                )
                     
                     
             }
@@ -104,13 +105,12 @@ impl super::MessageHandler for Quit {
             raw: message, reason: reason
         })
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
-        origin.borrow_mut().close();
-        server.remove_client(&origin);
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        server.close_connection(&origin);
         for (_, channel) in server.channels.iter() {
             // TODO make this more performant, cache channels in user?
             let reason = self.reason.clone();
-            let proxy = origin.borrow().proxy();
+            let proxy = origin.clone();
             channel.send(channel::HandleMut(proc(channel) {
                 do_quit_leave(channel, proxy, cmd::QUIT, reason)
             }))

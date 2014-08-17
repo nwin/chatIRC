@@ -27,18 +27,18 @@ pub struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: PeerId, realname: String, mask: HostMask, server_name: String, peer: Peer) -> Member {
+    pub fn new(peer: Peer) -> Member {
         Member {
-            id: id,
-            peer: peer,
-            nick: mask.nick().unwrap().to_string(),
-            hostname: mask.host().unwrap().to_string(),
-            username: mask.user().unwrap().to_string(),
-            realname: realname,
-            mask: mask.clone(),
-            decorated_nick: mask.nick().unwrap().to_string(),
+            id: peer.id(),
+            nick: peer.info().read().nick().clone(),
+            hostname: peer.info().read().hostname().clone(),
+            username: peer.info().read().username().clone(),
+            realname: peer.info().read().realname().clone(),
+            mask: peer.info().read().real_hostmask().clone(),
+            decorated_nick: peer.info().read().nick().clone(),
             flags: HashSet::new(),
-            server_name: server_name
+            server_name: peer.info().read().server_name().clone(),
+            peer: peer,
         }
     }
     

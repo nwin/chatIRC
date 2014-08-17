@@ -148,16 +148,23 @@ impl Server {
         self.host.as_slice()
     }
     
+    /// Finds a peer
+    pub fn find_peer(&self, nick: &String) -> Option<&Peer> {
+        self.nicks.find(nick).and_then(|id| self.users.find(id))
+    }
+    
     /// Getter for hostname
     pub fn tx(&self) -> Option<Sender<Event>> {
         self.tx.clone()
     }
     
-    pub fn remove_user(&mut self, client: &Peer) {
+    pub fn close_connection(&mut self, client: &Peer) {
         //self.nicks.remove(client.nick());
-        self.users.remove(&client.id());
-        self.connections.remove(&client.id());
-        fail!("TODO: reverse remove the nickname with peer id…")
+        let id = &client.id();
+        self.connections.find_mut(id).map(|c| c.close());
+        self.users.remove(id);
+        self.connections.remove(id);
+        error!("TODO: clean up nicknames in Server::close_connection")
     }
     
     pub fn add_user(&mut self, client: Peer) {

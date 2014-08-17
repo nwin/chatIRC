@@ -6,7 +6,7 @@ use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::{SharedClient, ClientProxy};
+use con::{Peer};
 /// Handles the WHO message
 /// The reply consists of two parts:
 /// 
@@ -31,7 +31,7 @@ pub struct Who {
     op_only: bool
 }
 impl Who {
-    pub fn handle_who(&self, channel: &Channel, client: ClientProxy) {
+    pub fn handle_who(&self, channel: &Channel, client: Peer) {
         if (channel.has_flag(Private) || channel.has_flag(Secret))
         && !channel.member_with_id(client.id()).is_some() {
             // Don't give information about this channel to the outside
@@ -73,12 +73,11 @@ impl super::MessageHandler for Who {
             raw: message, mask: mask, op_only: op_only
         })
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
+    fn invoke(self, server: &mut Server, origin: Peer) {
         match server.channels.find(&self.mask) {
             Some(channel) => {
-                let proxy = origin.borrow().proxy();
                 channel.send(channel::Handle(proc(channel) {
-                    self.handle_who(channel, proxy)
+                    self.handle_who(channel, origin)
                 }))
             },
             None => {} // handle later
@@ -96,7 +95,7 @@ pub struct Names {
 }
 impl Names {
     /// Sends the list of users to the client
-    pub fn handle_names(channel: &Channel, proxy: &ClientProxy) {
+    pub fn handle_names(channel: &Channel, proxy: &Peer) {
         // TODO check if channel is visible to user…
         // TODO replace with generic list sending function
         for member in channel.members() {
@@ -125,20 +124,22 @@ impl super::MessageHandler for Names {
             ], None))
         }
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        let host = server.host().to_string(); // clone due to #6393
         for recv in self.receivers.iter() {
             match recv {
                 &util::ChannelName(ref name) => {
                     match server.channels.find_mut(&name.to_string()) {
                         Some(channel) => { 
-                            let proxy = origin.borrow().proxy();
+                            let proxy = origin.clone();
                             channel.send(channel::Handle(proc(channel) {
                                 Names::handle_names(channel, &proxy)
                             }))
                         },
-                        None => origin
-                            .borrow_mut().send_response(cmd::ERR_NOSUCHCHANNEL,
-                                Some(name.as_slice()), Some("No such channel"))
+                        None => origin.send_response(cmd::ERR_NOSUCHCHANNEL,
+                            &[name.as_slice(), "No such channel"],
+                            host.as_slice()
+                        )
                     }
                 },
                 _ => {}

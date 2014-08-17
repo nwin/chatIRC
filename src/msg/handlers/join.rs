@@ -5,7 +5,7 @@ use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::SharedClient;
+use con::Peer;
 
 /// Handles the JOIN command.
 ///
@@ -146,17 +146,11 @@ impl super::MessageHandler for Join {
         })
     }
     
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
-        let host = server.host().to_string();
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        let host = server.host().to_string(); // clone due to #6393
         for (channel, password) in self.targets.move_iter()
                                    .zip(self.passwords.move_iter()) {
-            let member = channel::Member::new(
-                origin.borrow().id(),
-                origin.borrow().realname.clone(),
-                util::HostMask::new(origin.borrow().real_mask()),
-                host.clone(),
-                origin.borrow().proxy()
-            );
+            let member = channel::Member::new(origin.clone());
             let tx = server.tx().unwrap(); // save to unwrap, this should exist by now
             server.channels.find_or_insert_with(channel.to_string(), |name| {
                 let mut channel = channel::Channel::new(name.clone(), host.clone());
