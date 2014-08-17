@@ -43,19 +43,21 @@ impl Who {
         } else {
             let sender = channel.list_sender(&client, cmd::RPL_WHOREPLY, cmd::RPL_ENDOFWHO);
             for member in channel.members() {
-                sender.feed_line(&[
-                    channel.name(),
-                    member.username(),
-                    member.hostname(),
-                    channel.server_name(),
-                    member.nick(),
-                    format!("{}{}{}", 
-                        "H", // always here as long away is not implemented
-                        "", // * is not supported yet
-                        member.decoration()
-                    ).as_slice(),
-                    format!("0 {}", member.realname()).as_slice()
-                ]);
+                if !self.op_only || member.is_op() {
+                    sender.feed_line(&[
+                        channel.name(),
+                        member.username(),
+                        member.hostname(),
+                        channel.server_name(),
+                        member.nick(),
+                        format!("{}{}{}", 
+                            "H", // always here as long away is not implemented
+                            "", // * is not supported yet
+                            member.decoration()
+                        ).as_slice(),
+                        format!("0 {}", member.realname()).as_slice()
+                    ]);
+                }
             }
             sender.end_of_list()
         }
