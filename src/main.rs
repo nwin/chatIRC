@@ -22,6 +22,8 @@ pub mod msg;
 pub mod cmd;
 pub mod util;
 
+pub mod con;
+
 #[cfg(not(test))]
 fn main() {
     match run_server("localhost") {

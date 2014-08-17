@@ -10,6 +10,7 @@ use client::{SharedClient, Client, ClientId};
 use msg::{MessageHandler};
 
 use cmd;
+use con;
 use channel;
 
 pub struct Server {
@@ -18,6 +19,7 @@ pub struct Server {
     port: u16, 
     tx: Option<Sender<Event>>,
     clients: HashMap<ClientId, SharedClient>,
+    connections: HashMap<con::PeerId, con::Connection>,
     pub registered: HashMap<String, SharedClient>,
     pub channels: HashMap<String, channel::Proxy>
 }
@@ -28,6 +30,8 @@ pub enum Event {
     MessageReceived(ClientId, Box<MessageHandler + Send>),
     /// Connection to a client established
     ClientConnected(Client),
+    /// Connection to a peer established
+    Connected(con::Connection),
     /// The task of Channel(name) failed
     ChannelLost(String),
 }
@@ -62,6 +66,7 @@ impl Server {
             tx: None,
             clients: HashMap::new(),
             registered: HashMap::new(),
+            connections: HashMap::new(),
             channels: HashMap::new()
         })
     }
@@ -87,11 +92,19 @@ impl Server {
                 ClientConnected(mut client) => { 
                     if self.clients.find(&client.id()).is_some() {
                         // Duplicate client id.
-                        (client).close()
+                        (client).close();
                     }
                     let client = client.as_shared();
                     self.clients.insert(client.borrow().id(), client); 
                 }
+                Connected(mut con) => { 
+                    let id = con.id();
+                    if self.connections.find(&id).is_some() {
+                        // Duplicate client id.
+                        con.close();
+                    }
+                    self.connections.insert(id, con); 
+                },
                 ChannelLost(name) => {
                     // TODO kick all users from this channel
                     // can be implemented when channel names are cached on all users
