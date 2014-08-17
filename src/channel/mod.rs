@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::collections::hashmap;
 
-use client::{ClientId, ClientProxy};
 use msg::{RawMessage};
 use util::{HostMask};
 
+use con::{PeerId, Peer};
 use cmd;
 use server;
 
@@ -58,7 +58,7 @@ pub struct Channel {
     flags: Flags,
     limit: Option<uint>,
     members: HashMap<String, Member>,
-    nicknames: HashMap<ClientId, String>,
+    nicknames: HashMap<PeerId, String>,
     ban_masks: HashSet<HostMask>,
     except_masks: HashSet<HostMask>,
     invite_masks: HashSet<HostMask>,
@@ -232,7 +232,7 @@ impl Channel {
     }
     
     /// Adds a member to the channel
-    pub fn remove_member(&mut self, id: &ClientId) -> bool {
+    pub fn remove_member(&mut self, id: &PeerId) -> bool {
         let nick = { match self.nicknames.find(id) {
                 Some(nick) => nick.clone(),
                 None => return false
@@ -242,7 +242,7 @@ impl Channel {
         true
     }
     
-    pub fn send_response(&self, client: &ClientProxy, command: cmd::ResponseCode, 
+    pub fn send_response(&self, client: &Peer, command: cmd::ResponseCode, 
                          params: &[&str]) {
         client.send_response(
             command, 
@@ -251,7 +251,7 @@ impl Channel {
         )
     }
     
-    pub fn member_with_id(&self, client_id: ClientId) -> Option<&Member> {
+    pub fn member_with_id(&self, client_id: PeerId) -> Option<&Member> {
         let nick = self.nicknames.find(&client_id).clone();
         match nick {
             Some(nick) => self.members.find(nick),
@@ -259,7 +259,7 @@ impl Channel {
         }
     }
     
-    pub fn mut_member_with_id(&mut self, client_id: ClientId) -> Option<&mut Member> {
+    pub fn mut_member_with_id(&mut self, client_id: PeerId) -> Option<&mut Member> {
         let nick = self.nicknames.find(&client_id).clone();
         match nick {
             Some(nick) => self.members.find_mut(nick),
@@ -282,7 +282,7 @@ impl Channel {
             member.send_msg(message.clone())
         }
     }
-    pub fn list_sender<'a>(&'a self, receiver: &'a ClientProxy, list_code: cmd::ResponseCode,
+    pub fn list_sender<'a>(&'a self, receiver: &'a Peer, list_code: cmd::ResponseCode,
     end_code: cmd::ResponseCode) -> ListSender {
         ListSender {
             receiver: receiver,
@@ -296,7 +296,7 @@ impl Channel {
 
 /// Helper struct to send list replies
 pub struct ListSender<'a> {
-    receiver: &'a ClientProxy,
+    receiver: &'a Peer,
     list_code: cmd::ResponseCode,
     end_code: cmd::ResponseCode,
     name: &'a str,

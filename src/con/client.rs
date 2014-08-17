@@ -11,19 +11,26 @@ pub type SharedInfo = Arc<RWLock<UserInfo>>;
 /// Struct holding the user info like nick name, host name etc.
 pub struct UserInfo {
     id: super::PeerId,
-    nick: String,
     server_name: String,
+    nick: String,
+    username: String,
+    realname: String,
+    hostname: String,
     hostmask: HostMask
 }
 
 impl UserInfo {
     /// Creates the user info struct.
-    pub fn new(id: super::PeerId, server_name: String, hostmask: HostMask) -> UserInfo {
+    pub fn new(id: super::PeerId, server_name: String, hostname: String) -> UserInfo {
+        let mask = HostMask::from_parts("*", "*", hostname.as_slice());
         UserInfo {
             id: id,
-            nick: "*".to_string(),
             server_name: server_name,
-            hostmask: hostmask
+            nick: "*".to_string(),
+            username: "*".to_string(),
+            realname: "John Doe".to_string(),
+            hostname: hostname,
+            hostmask: mask
         }
     }
     
@@ -31,14 +38,40 @@ impl UserInfo {
     pub fn id(&self) -> super::PeerId {
         self.id.clone()
     }
-    /// Getter for the peer id
+    /// Getter for the nick name
     pub fn nick(&self) -> &String {
         &self.nick
     }
-    /// Getter for the peer id
+    
+    /// Setter for the nick name
+    pub fn set_nick(&mut self, nick: String) {
+        self.nick = nick;
+        self.update_mask()
+    }
+    /// Getter for the user name
+    pub fn set_username(&mut self, name: String) {
+        self.username = name;
+        self.update_mask()
+    }
+    /// Getter for the real name
+    pub fn set_realname(&mut self, name: String) {
+        self.realname = name;
+        self.update_mask()
+    }
+    /// Getter for the server name
     pub fn server_name(&self) -> &String {
         &self.server_name
     }
+    
+    /// Updates the real hostmask
+    fn update_mask(&mut self) {
+        self.hostmask = HostMask::from_parts(
+            self.nick.as_slice(),
+            self.username.as_slice(),
+            self.hostname.as_slice()
+        )
+    }
+    
     /// Getter for the public host mask.
     ///
     /// This is the host mask that is send out to other users.

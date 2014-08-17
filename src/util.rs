@@ -87,6 +87,11 @@ impl HostMask {
             mask: mask
         }
     }
+    pub fn from_parts(nick: &str, name: &str, host: &str) -> HostMask {
+        HostMask {
+            mask: format!("{}!{}@{}", nick, name, host)
+        }
+    }
     /// checks if the host mask matches another mask
     ///
     /// "*!*@*.com" would match "a!b@example.com"

@@ -1,6 +1,6 @@
 use msg::RawMessage;
 use server::{Server};
-use client::SharedClient;
+use con::Peer;
 
 #[allow(dead_code)] 
 pub struct Ping {
@@ -16,7 +16,7 @@ impl super::MessageHandler for Ping {
            raw: message, payload: payload
        })
     }
-    fn invoke(self, _: &mut Server, _: SharedClient) {
+    fn invoke(self, _: &mut Server, _: Peer) {
         // ignore for now
     }
     fn raw_message(&self) -> &RawMessage {
@@ -38,7 +38,7 @@ impl super::MessageHandler for Pong {
            raw: message, payload: payload
        })
     }
-    fn invoke(self, _: &mut Server, _: SharedClient) {
+    fn invoke(self, _: &mut Server, _: Peer) {
         // ignore for now
     }
     fn raw_message(&self) -> &RawMessage {

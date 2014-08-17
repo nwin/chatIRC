@@ -1,6 +1,6 @@
 use std::collections::{HashSet};
 
-use client::{ClientId, ClientProxy};
+use con::{PeerId, Peer};
 use msg::{RawMessage};
 use util::{HostMask};
 use cmd;
@@ -9,8 +9,8 @@ use super::util::{Flags, ChannelMode, OperatorPrivilege, VoicePrivilege};
 
 /// Represents a channel member
 pub struct Member {
-    id: ClientId,
-    proxy: ClientProxy,
+    id: PeerId,
+    peer: Peer,
     nick: String,
     mask: HostMask,
     hostname: String,
@@ -27,10 +27,10 @@ pub struct Member {
 
 impl Member {
     /// Creates a new member
-    pub fn new(id: ClientId, realname: String, mask: HostMask, server_name: String, proxy: ClientProxy) -> Member {
+    pub fn new(id: PeerId, realname: String, mask: HostMask, server_name: String, peer: Peer) -> Member {
         Member {
             id: id,
-            proxy: proxy,
+            peer: peer,
             nick: mask.nick().unwrap().to_string(),
             hostname: mask.host().unwrap().to_string(),
             username: mask.user().unwrap().to_string(),
@@ -43,12 +43,12 @@ impl Member {
     }
     
     pub fn send_response(&self, command: cmd::ResponseCode, params: &[&str]) {
-        self.proxy.send_response(command, params, self.server_name.as_slice())
+        self.peer.send_response(command, params, self.server_name.as_slice())
     }
     
     /// Sends a message to the client
     pub fn send_msg(&self, msg: RawMessage) {
-        self.proxy.send_msg(msg)
+        self.peer.send_msg(msg)
     }
     
     /// Grant a privilege to a member
@@ -144,13 +144,13 @@ impl Member {
     }
     
     /// Getter for client id
-    pub fn id(&self) -> ClientId {
+    pub fn id(&self) -> PeerId {
         self.id.clone()
     }
     
     /// Getter for the client proxy
-    pub fn proxy(&self) -> &ClientProxy {
-        &self.proxy
+    pub fn proxy(&self) -> &Peer {
+        &self.peer
     }
 }
 

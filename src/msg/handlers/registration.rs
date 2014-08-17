@@ -3,20 +3,20 @@ use msg::RawMessage;
 use util;
 
 use server::{Server};
-use client::SharedClient;
+use con::{Peer, Connection};
 
 
 
 
-fn try_register(server: &mut Server, origin: &SharedClient) {
-    let nick = origin.borrow().nickname.clone();
-    if nick.len() > 0 && server.registered.contains_key(&nick) {
-        origin.borrow().send_response(cmd::ERR_ALREADYREGISTRED, None,
-            Some("somebody already registered with the same nickname")
-        );
+fn try_register(server: &mut Server, origin: Peer) {
+    if server.nicks.contains_key(origin.info().read().nick()) {
+        origin.send_response(cmd::ERR_ALREADYREGISTRED, 
+            &["somebody already registered with the same nickname"],
+            server.host()
+        )
     } else {
-        server.registered.insert(nick, origin.clone());
-        server.send_welcome_msg(origin);
+        server.send_welcome_msg(&origin);
+        server.add_user(origin);
     }
 }
 
@@ -50,20 +50,22 @@ impl super::MessageHandler for Nick {
             ], None))
         }
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
-        if server.registered.contains_key(&self.nick) {
-            origin.borrow().send_response(
-                cmd::ERR_NICKNAMEINUSE,
-                Some(self.nick.as_slice()), 
-                Some("nickname in use")
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        if server.nicks.contains_key(&self.nick) {
+            origin.send_response(cmd::ERR_NICKNAMEINUSE,
+                &[self.nick.as_slice(), "nickname in use"],
+                server.host()
             );
         } else {
-            origin.borrow_mut().nickname = self.nick;
+            if server.valid_nick(origin.info().read().nick().as_slice()) {
+                origin.info().write().set_nick(self.nick);
+                try_register(server, origin)
+            }
+            
         }
-        if origin.borrow().username.len() > 0 && !server.registered.contains_key(&origin.borrow().nickname){
-            // user message already send but not yet registered
-            try_register(server, &origin)
-        }
+    }
+    fn invoke_con(self, server: &mut Server, origin: Connection) {
+        self.invoke(server, origin.peer())
     }
     fn raw_message(&self) -> &RawMessage {
         &self.raw
@@ -92,10 +94,17 @@ impl super::MessageHandler for User {
         }
         
     }
-    fn invoke(self, server: &mut Server, origin: SharedClient) {
-        origin.borrow_mut().username = self.username;
-        origin.borrow_mut().realname = self.realname;
-        try_register(server, &origin)
+    fn invoke(self, server: &mut Server, origin: Peer) {
+        {
+            let mut info = origin.info().write();
+            info.set_username(self.username);
+            info.set_realname(self.realname);
+        
+        }
+        try_register(server, origin)
+    }
+    fn invoke_con(self, server: &mut Server, origin: Connection) {
+        self.invoke(server, origin.peer())
     }
     fn raw_message(&self) -> &RawMessage {
         &self.raw

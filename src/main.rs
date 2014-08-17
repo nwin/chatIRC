@@ -15,14 +15,13 @@ extern crate libc;
 use server::{run_server};
 
 // pub only for documentation purposes
-pub mod client;
+pub mod con;
 pub mod server;
 pub mod channel;
 pub mod msg;
 pub mod cmd;
 pub mod util;
 
-pub mod con;
 
 #[cfg(not(test))]
 fn main() {

@@ -6,11 +6,10 @@ use std::io::net;
 use std::io;
 use std::collections::hashmap::{HashMap};
 
-use client::{SharedClient, Client, ClientId};
 use msg::{MessageHandler};
 
 use cmd;
-use con;
+use con::{Peer, PeerId, Connection};
 use channel;
 
 pub struct Server {
@@ -18,20 +17,18 @@ pub struct Server {
     ip: String,
     port: u16, 
     tx: Option<Sender<Event>>,
-    clients: HashMap<ClientId, SharedClient>,
-    connections: HashMap<con::PeerId, con::Connection>,
-    pub registered: HashMap<String, SharedClient>,
+    connections: HashMap<PeerId, Connection>,
+    pub users: HashMap<PeerId, Peer>,
+    pub nicks: HashMap<String, PeerId>,
     pub channels: HashMap<String, channel::Proxy>
 }
 
 /// Enumeration of the events the server can receive
 pub enum Event {
     /// Message received from a client
-    MessageReceived(ClientId, Box<MessageHandler + Send>),
-    /// Connection to a client established
-    ClientConnected(Client),
+    MessageReceived(PeerId, Box<MessageHandler + Send>),
     /// Connection to a peer established
-    Connected(con::Connection),
+    Connected(Connection),
     /// The task of Channel(name) failed
     ChannelLost(String),
 }
@@ -64,9 +61,9 @@ impl Server {
             ip: format!("{}", ip),
             port: 6667,
             tx: None,
-            clients: HashMap::new(),
-            registered: HashMap::new(),
             connections: HashMap::new(),
+            users: HashMap::new(),
+            nicks: HashMap::new(),
             channels: HashMap::new()
         })
     }
@@ -77,26 +74,28 @@ impl Server {
         for event in try!(self.start_listening()).iter() {
             match event {
                 MessageReceived(client_id, handler) => {
-                    let client = match self.clients.find(&client_id) {
+                    let client = match self.users.find(&client_id) {
                         Some(client) => Some(client.clone()),
                         None => None
                     };
                     match client {
                         Some(client) => handler.invoke(&mut self, client),
-                        None => error!(
-                            "Client {} not found when sending message.",
-                            client_id
-                        ) // The user is not registered yet
+                        None => {
+                            let con = match self.connections.find(&client_id) {
+                                Some(con) => Some(con.clone()),
+                                None => None
+                            };
+                            match con {
+                                Some(con) => handler.invoke_con(&mut self, con),
+                                None => 
+                                    error!(
+                                        "Client {} not found when sending message.",
+                                        client_id
+                                    ) // The user is not registered yet
+                            }
+                        }
                     }
                 },
-                ClientConnected(mut client) => { 
-                    if self.clients.find(&client.id()).is_some() {
-                        // Duplicate client id.
-                        (client).close();
-                    }
-                    let client = client.as_shared();
-                    self.clients.insert(client.borrow().id(), client); 
-                }
                 Connected(mut con) => { 
                     let id = con.id();
                     if self.connections.find(&id).is_some() {
@@ -128,7 +127,7 @@ impl Server {
                 match maybe_stream {
                     Err(err) => { error!("{}", err) }
                     Ok(stream) => {
-                        match Client::listen(host.clone(), stream, tx.clone()) {
+                        match Connection::listen(host.clone(), stream, tx.clone()) {
                             Ok(()) => {},
                             Err(err) => error!("{}", err)
                         }
@@ -137,6 +136,11 @@ impl Server {
             }
         });
         Ok(rx)
+    }
+    
+    /// Checks if the nickname is valid
+    pub fn valid_nick(&self, nick: &str) -> bool {
+        nick.len() > 1
     }
     
     /// Getter for hostname
@@ -149,14 +153,20 @@ impl Server {
         self.tx.clone()
     }
     
-    pub fn remove_client(&mut self, client: &SharedClient) {
-        let client = client.borrow();
-        self.registered.remove(&client.nickname);
-        self.clients.remove(&client.id());
+    pub fn remove_user(&mut self, client: &Peer) {
+        //self.nicks.remove(client.nick());
+        self.users.remove(&client.id());
+        self.connections.remove(&client.id());
+        fail!("TODO: reverse remove the nickname with peer id…")
+    }
+    
+    pub fn add_user(&mut self, client: Peer) {
+        self.nicks.insert(client.info().read().nick().to_string(), client.id());
+        self.users.insert(client.id(), client);
     }
     
     /// Sends a welcome message to a newly registered client
-    pub fn send_welcome_msg(&self, client: &SharedClient) {
-        client.borrow().send_response(cmd::RPL_WELCOME, None, None)
+    pub fn send_welcome_msg(&self, client: &Peer) {
+        client.send_response(cmd::RPL_WELCOME, &["Welcome the {} IRC network"], self.host.as_slice())
     }
 }

@@ -62,6 +62,7 @@ impl Clone for PeerId {
     }
 }
 
+#[deriving(Clone)]
 pub struct Connection {
     id: PeerId,
     peer: Peer,
@@ -82,7 +83,7 @@ impl Connection {
         let hostname = self::net::get_nameinfo(peer_name);
         debug!("hostname of client is {}", hostname.clone())
         let peer = Peer::new(
-            UserInfo::new(id, server_host, ::util::HostMask::new(hostname)),
+            UserInfo::new(id, server_host, hostname),
             msg_tx,
         );
         let receiving_stream = stream.clone();
@@ -104,7 +105,7 @@ impl Connection {
                     Ok(raw) => {
                         debug!("received message {}", raw.to_string());
                         match msg::get_handler(raw) {
-                            Ok(handler) => {}//tx.send(server::MessageReceived(id, handler)),
+                            Ok(handler) => tx.send(server::MessageReceived(id, handler)),
                             Err(err_msg) => {
                                 // TODO inject proper receiver
                                 err_tx.send(err_msg)
