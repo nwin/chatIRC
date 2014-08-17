@@ -57,7 +57,7 @@ impl super::MessageHandler for Nick {
                 server.host()
             );
         } else {
-            if server.valid_nick(origin.info().read().nick().as_slice()) {
+            if server.valid_nick(self.nick.as_slice()) {
                 origin.info().write().set_nick(self.nick);
                 try_register(server, origin)
             }
@@ -101,7 +101,9 @@ impl super::MessageHandler for User {
             info.set_realname(self.realname);
         
         }
-        try_register(server, origin)
+        if server.valid_nick(origin.info().read().nick().as_slice()) {
+            try_register(server, origin)
+        }
     }
     fn invoke_con(self, server: &mut Server, origin: Connection) {
         self.invoke(server, origin.peer())
