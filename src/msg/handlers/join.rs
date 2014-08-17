@@ -88,23 +88,6 @@ impl Join {
         );
         // Send name list as per RFC
         super::lists::Names::handle_names(channel, member.proxy());
-
-        // Tell the first user that he is op and which flags the channel has
-        if channel.member_count() == 1 {
-            // broadcast initial channel mode
-            let msg = RawMessage::new(cmd::MODE, [
-                channel.name(),
-                format!("+{}", channel.flags()).as_slice(), 
-            ], Some(channel.server_name()));
-            channel.broadcast(msg);
-            // broadcast op rights for first user
-            let msg = RawMessage::new(cmd::MODE, [
-                channel.name(),
-                format!("+{}", member.flags()).as_slice(), 
-                member.nick()], Some(channel.server_name())
-            );
-            channel.broadcast(msg)
-        }
     }
 }
 
