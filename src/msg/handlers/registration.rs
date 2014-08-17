@@ -1,6 +1,6 @@
 use cmd;
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 use client::SharedClient;

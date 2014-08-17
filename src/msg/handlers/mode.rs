@@ -9,7 +9,7 @@ use channel::util::{AnonChannel, InviteOnly, Moderated, MemberOnly,
 };
 use channel::util::{ChannelMode, Action, Add, Remove, Show};
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 
@@ -17,7 +17,7 @@ use server::{Server};
 /// Handles the MODE command
 pub struct Mode {
     raw: RawMessage,
-    receiver: ::msg::Receiver,
+    receiver: util::Receiver,
     //params: Vec<Vec<u8>>
 }
 impl Mode {

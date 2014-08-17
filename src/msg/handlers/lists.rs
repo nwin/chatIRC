@@ -3,7 +3,7 @@ use channel;
 use channel::{Channel};
 use channel::util::{Secret, Private};
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 use client::{SharedClient, ClientProxy};

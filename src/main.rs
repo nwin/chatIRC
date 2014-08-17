@@ -20,6 +20,7 @@ pub mod server;
 pub mod channel;
 pub mod msg;
 pub mod cmd;
+pub mod util;
 
 #[cfg(not(test))]
 fn main() {

@@ -2,7 +2,7 @@ use cmd;
 use channel;
 use channel::util::{InviteOnly, ChannelCreator, OperatorPrivilege, TopicProtect, MemberOnly, UserLimit};
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 use client::SharedClient;

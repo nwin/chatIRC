@@ -3,7 +3,7 @@ use channel;
 use channel::{Channel};
 use channel::util::{MemberOnly, VoicePrivilege};
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 use client::{SharedClient, ClientId};
@@ -12,7 +12,7 @@ use client::{SharedClient, ClientId};
 #[allow(dead_code)]
 pub struct Privmsg {
     raw: RawMessage,
-    receiver: Vec<::msg::Receiver>,
+    receiver: Vec<util::Receiver>,
     message: Vec<u8>
 }
 impl Privmsg {

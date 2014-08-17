@@ -2,7 +2,7 @@ use std::collections::{HashSet};
 
 use client::{ClientId, ClientProxy};
 use msg::{RawMessage};
-use msg::util::{HostMask};
+use util::{HostMask};
 use cmd;
 
 use super::util::{Flags, ChannelMode, OperatorPrivilege, VoicePrivilege};

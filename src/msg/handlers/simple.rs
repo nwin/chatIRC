@@ -2,7 +2,7 @@ use cmd;
 use channel;
 use channel::util::{TopicProtect};
 use msg::RawMessage;
-use msg::util;
+use util;
 
 use server::{Server};
 use client::{SharedClient, ClientProxy};
