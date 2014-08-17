@@ -38,20 +38,28 @@ impl UserInfo {
     pub fn id(&self) -> super::PeerId {
         self.id.clone()
     }
+    
     /// Getter for the nick name
     pub fn nick(&self) -> &String {
         &self.nick
     }
-    
     /// Setter for the nick name
     pub fn set_nick(&mut self, nick: String) {
         self.nick = nick;
         self.update_mask()
     }
+    /// Getter for the nick name
+    pub fn username(&self) -> &String {
+        &self.username
+    }
     /// Getter for the user name
     pub fn set_username(&mut self, name: String) {
         self.username = name;
         self.update_mask()
+    }
+    /// Getter for the nick name
+    pub fn realname(&self) -> &String {
+        &self.realname
     }
     /// Getter for the real name
     pub fn set_realname(&mut self, name: String) {
@@ -61,6 +69,10 @@ impl UserInfo {
     /// Getter for the server name
     pub fn server_name(&self) -> &String {
         &self.server_name
+    }
+    /// Getter for the server name
+    pub fn hostname(&self) -> &String {
+        &self.hostname
     }
     
     /// Updates the real hostmask
