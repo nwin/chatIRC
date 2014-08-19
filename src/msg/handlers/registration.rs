@@ -14,7 +14,7 @@ fn try_register(server: &mut Server, origin: Peer) {
             &["somebody already registered with the same nickname"],
             server.host()
         )
-    } else {
+    } else if origin.info().read().username().len() > 0 {
         server.send_welcome_msg(&origin);
         server.add_user(origin);
     }

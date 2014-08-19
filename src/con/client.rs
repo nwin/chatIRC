@@ -5,6 +5,16 @@ use util::{HostMask};
 use msg::{RawMessage};
 use cmd;
 
+pub mod reg {
+    #[deriving(FromPrimitive, PartialEq)]
+    pub enum RegistrationStatus {
+        Connected = 0,
+        GotNick = 1,
+        GotUser = 2,
+        Registered = 3,
+    }
+}
+
 /// Struct to hold the user info synchronized across all threads.
 pub type SharedInfo = Arc<RWLock<UserInfo>>;
 
@@ -16,7 +26,8 @@ pub struct UserInfo {
     username: String,
     realname: String,
     hostname: String,
-    hostmask: HostMask
+    hostmask: HostMask,
+    status: reg::RegistrationStatus
 }
 
 impl UserInfo {
@@ -27,10 +38,11 @@ impl UserInfo {
             id: id,
             server_name: server_name,
             nick: "*".to_string(),
-            username: "*".to_string(),
+            username: "".to_string(),
             realname: "John Doe".to_string(),
             hostname: hostname,
-            hostmask: mask
+            hostmask: mask,
+            status: reg::Connected
         }
     }
     
@@ -73,6 +85,14 @@ impl UserInfo {
     /// Getter for the server name
     pub fn hostname(&self) -> &String {
         &self.hostname
+    }
+    /// Getter for the registration status/method
+    pub fn registration(&self) -> reg::RegistrationStatus {
+        self.status
+    }
+    /// Getter for the registration status/method
+    pub fn mut_registration(&mut self) -> &mut reg::RegistrationStatus {
+        &mut self.status
     }
     
     /// Updates the real hostmask

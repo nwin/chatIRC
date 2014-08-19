@@ -5,6 +5,7 @@ use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
 pub use self::client::{UserInfo, SharedInfo, Peer};
+pub use self::client::reg as reg;
 
 use msg::{RawMessage};
 use msg;
