@@ -8,15 +8,14 @@ use util;
 use server::{Server};
 use con::{Peer, PeerId};
 
-/// handles private messages
+/// handles PRIVMSG and NOTICE messages
 #[allow(dead_code)]
-pub struct Privmsg {
+pub struct Msg {
     raw: RawMessage,
     receiver: Vec<util::Receiver>,
     message: Vec<u8>
 }
-impl Privmsg {
-    
+impl Msg {
     pub fn handle_privmsg(channel: &Channel, client_id: PeerId, message: RawMessage) {
         let maybe_member = channel.member_with_id(client_id);
         if channel.has_flag(MemberOnly) || channel.has_flag(VoicePrivilege) {
@@ -47,11 +46,11 @@ impl Privmsg {
         }
     }
 }
-impl super::MessageHandler for Privmsg {
-    fn from_message(message: RawMessage) -> Result<Box<Privmsg>, RawMessage> {
+impl super::MessageHandler for Msg {
+    fn from_message(message: RawMessage) -> Result<Box<Msg>, Option<RawMessage>> {
         let params = message.params();
         if params.len() > 1 {
-            Ok(box Privmsg {
+            Ok(box Msg {
                 raw: message.clone(), 
                 receiver: params[0].as_slice()
                                    .split(|&v| v == b',' )
@@ -60,10 +59,12 @@ impl super::MessageHandler for Privmsg {
                 message: params[1].to_vec()
             })
         } else {
-             return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
-                "*", message.command().to_string().as_slice(),
-                "not enought params given"
-            ], None))
+            if message.command() != cmd::NOTICE {
+                return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+                   "*", message.command().to_string().as_slice(),
+                   "not enought params given"
+                ], None)))
+            } else { Err(None) }
         }
     }
     fn invoke(mut self, server: &mut Server, origin: Peer) {
@@ -75,7 +76,7 @@ impl super::MessageHandler for Privmsg {
                         let id = origin.id();
                         let message = self.raw.clone();
                         channel.send(channel::Handle(proc(channel) {
-                            Privmsg::handle_privmsg(channel, id, message)
+                            Msg::handle_privmsg(channel, id, message)
                         }))
                     },
                     None => {}

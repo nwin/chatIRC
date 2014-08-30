@@ -4,6 +4,7 @@ use util;
 
 use server::{Server};
 use con::{Peer, Connection};
+use con;
 
 
 
@@ -14,7 +15,7 @@ fn try_register(server: &mut Server, origin: Peer) {
             &["somebody already registered with the same nickname"],
             server.host()
         )
-    } else if origin.info().read().username().len() > 0 {
+    } else if origin.info().read().registration() == con::reg::Registered {
         server.send_welcome_msg(&origin);
         server.add_user(origin);
     }
@@ -30,7 +31,7 @@ pub struct Nick {
 }
 
 impl super::MessageHandler for Nick {
-    fn from_message(message: RawMessage) -> Result<Box<Nick>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Nick>, Option<RawMessage>> {
         let params = message.params();
         if params.len() > 0 {
             match util::verify_nick(params[0].as_slice()) {
@@ -39,15 +40,15 @@ impl super::MessageHandler for Nick {
                     nick: nick.to_string()
                 }),
                 None => 
-                    Err(RawMessage::new(cmd::REPLY(cmd::ERR_ERRONEUSNICKNAME), [
+                    Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_ERRONEUSNICKNAME), [
                         "*", String::from_utf8_lossy(params[0].as_slice()).as_slice(),
                         "invalid nick name"
-                    ], None))
+                    ], None)))
             }
         } else {
-            Err(RawMessage::new(cmd::REPLY(cmd::ERR_NONICKNAMEGIVEN), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NONICKNAMEGIVEN), [
                 "*", "no nickname given"
-            ], None))
+            ], None)))
         }
     }
     fn invoke(self, server: &mut Server, origin: Peer) {
@@ -78,7 +79,7 @@ pub struct User {
     realname: String
 }
 impl super::MessageHandler for User {
-    fn from_message(message: RawMessage) -> Result<Box<User>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<User>, Option<RawMessage>> {
         let params = message.params();
         if params.len() >= 4 {
             let username = String::from_utf8_lossy(params[0].as_slice()).to_string();
@@ -87,10 +88,10 @@ impl super::MessageHandler for User {
                 raw: message.clone(), username: username, realname: realname
             })
         } else {
-            Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "not enought params given"
-            ], None))
+            ], None)))
         }
         
     }
@@ -99,6 +100,7 @@ impl super::MessageHandler for User {
             let mut info = origin.info().write();
             info.set_username(self.username);
             info.set_realname(self.realname);
+            *info.mut_registration() = con::reg::Registered
         
         }
         if server.valid_nick(origin.info().read().nick().as_slice()) {

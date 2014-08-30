@@ -195,14 +195,14 @@ impl Mode {
     }
 }
 impl super::MessageHandler for Mode {
-    fn from_message(message: RawMessage) -> Result<Box<Mode>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Mode>, Option<RawMessage>> {
         let params = message.params();
         if params.len() > 0 {
             match util::verify_receiver(params[0]) {
-                util::InvalidReceiver(name) => return Err(RawMessage::new(cmd::REPLY(cmd::ERR_USERNOTINCHANNEL), [
+                util::InvalidReceiver(name) => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_USERNOTINCHANNEL), [
                     "*", message.command().to_string().as_slice(),
                     format!("invalid channel name {}", name).as_slice()
-                    ], None)
+                    ], None))
                 ),
                 receiver => Ok(box Mode{
                     raw: message.clone(),
@@ -212,10 +212,10 @@ impl super::MessageHandler for Mode {
                 })
             }
         } else {
-             return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "receiver given"
-            ], None))
+            ], None)))
         }
     }
     fn invoke(self, server: &mut Server, origin: Peer) {

@@ -64,7 +64,7 @@ impl Who {
     }
 }
 impl super::MessageHandler for Who {
-    fn from_message(message: RawMessage) -> Result<Box<Who>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Who>, Option<RawMessage>> {
         let mask = message.params().as_slice().get(0).map_or("0".to_string(),
             |&v| String::from_utf8_lossy(v).to_string());
         let op_only = match message.params().as_slice().get(1) {
@@ -111,7 +111,7 @@ impl Names {
     }
 }
 impl super::MessageHandler for Names {
-    fn from_message(message: RawMessage) -> Result<Box<Names>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Names>, Option<RawMessage>> {
         if message.params().len() > 0 {
             Ok(box Names {
                 raw: message.clone(),
@@ -120,10 +120,10 @@ impl super::MessageHandler for Names {
                 ).collect()
             })
         } else {
-            Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "not enought params given"
-            ], None))
+            ], None)))
         }
     }
     fn invoke(self, server: &mut Server, origin: Peer) {

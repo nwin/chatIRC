@@ -92,7 +92,7 @@ impl Join {
 }
 
 impl super::MessageHandler for Join {
-    fn from_message(message: RawMessage) -> Result<Box<Join>, RawMessage> { 
+    fn from_message(message: RawMessage) -> Result<Box<Join>, Option<RawMessage>> { 
         let params = message.params();
         let mut targets = Vec::new();
         let mut passwords = Vec::new();
@@ -112,17 +112,17 @@ impl super::MessageHandler for Join {
                             passwords.push(None);
                         }
                     },
-                    None => return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
                         "*", String::from_utf8_lossy(channel_name).as_slice(),
                         "Invalid channel name."
-                    ], None))
+                    ], None)))
                 }
             }
         } else {
-             return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "no params given"
-            ], None))
+            ], None)))
         }
         Ok(box Join {
             raw: message.clone(), targets: targets, passwords: passwords

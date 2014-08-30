@@ -9,7 +9,7 @@ pub struct Ping {
 }
 
 impl super::MessageHandler for Ping {
-    fn from_message(message: RawMessage) -> Result<Box<Ping>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Ping>, Option<RawMessage>> {
        let payload = message.params().as_slice().get(0).map(
            |&v| String::from_utf8_lossy(v).to_string());
        Ok(box Ping {
@@ -31,7 +31,7 @@ pub struct Pong {
 }
 
 impl super::MessageHandler for Pong {
-    fn from_message(message: RawMessage) -> Result<Box<Pong>, RawMessage> { 
+    fn from_message(message: RawMessage) -> Result<Box<Pong>, Option<RawMessage>> { 
        let payload = message.params().as_slice().get(0).map(
            |&v| String::from_utf8_lossy(v).to_string());
        Ok(box Pong {

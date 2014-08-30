@@ -20,18 +20,18 @@ macro_rules! handle {
         $command:ident with $handler:path;
     )*} => {
 /// Temporary dispatcher
-pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, RawMessage> {
+pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Option<RawMessage>> {
     match message.command() {
         $(cmd::$command => {
-            let t: Result<Box<$handler>, RawMessage> = MessageHandler::from_message(message);
+            let t: Result<Box<$handler>, Option<RawMessage>> = MessageHandler::from_message(message);
             t.map(|v| v as Box<MessageHandler + Send>)
         },)*
         REPLY(_) => {
-            let t: Result<Box<Reply>, RawMessage> = MessageHandler::from_message(message);
+            let t: Result<Box<Reply>, Option<RawMessage>> = MessageHandler::from_message(message);
             t.map(|v| v as Box<MessageHandler + Send>)
         },
         UNKNOWN(_) => {
-            let t: Result<Box<ExtensionHandler>, RawMessage> = MessageHandler::from_message(message);
+            let t: Result<Box<ExtensionHandler>, Option<RawMessage>> = MessageHandler::from_message(message);
             t.map(|v| v as Box<MessageHandler + Send>)
         }
     }
@@ -39,7 +39,8 @@ pub fn get_handler(message: RawMessage) -> Result<Box<MessageHandler + Send>, Ra
 }}
 
 handle!{
-    PRIVMSG with self::msg::Privmsg;
+    PRIVMSG with self::msg::Msg;
+    NOTICE with self::msg::Msg;
     NAMES with self::lists::Names;
     WHO with self::lists::Who;
     MODE with self::mode::Mode;
@@ -72,7 +73,7 @@ handle!{
 ///     }
 /// }
 /// impl super::MessageHandler for Handler {
-///     fn from_message(message: RawMessage) -> Result<Box<Handler>, RawMessage> {
+///     fn from_message(message: RawMessage) -> Result<Box<Handler>, Option<RawMessage>> {
 ///     }
 ///     fn invoke(self, server: &mut Server, origin: SharedClient) {
 ///     }
@@ -86,7 +87,7 @@ pub trait MessageHandler {
     ///
     /// Returns the handler for the message or an error message
     /// if something goes wrong
-    fn from_message(message: RawMessage) -> Result<Box<Self>, RawMessage>;
+    fn from_message(message: RawMessage) -> Result<Box<Self>, Option<RawMessage>>;
     /// Invokes the message handler. 
     ///
     /// Since this usually happens on the main event loop,
@@ -108,7 +109,7 @@ struct Reply {
     raw: RawMessage,
 }
 impl MessageHandler for Reply {
-    fn from_message(message: RawMessage) -> Result<Box<Reply>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Reply>, Option<RawMessage>> {
         Ok(box Reply { raw: message })
     }
     fn invoke(self, _: &mut Server, _: Peer) {
@@ -122,7 +123,7 @@ pub struct ExtensionHandler {
     raw: RawMessage,
 }
 impl MessageHandler for ExtensionHandler {
-    fn from_message(message: RawMessage) -> Result<Box<ExtensionHandler>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<ExtensionHandler>, Option<RawMessage>> {
         Ok(box ExtensionHandler { raw: message })
     }
     fn invoke(self, _: &mut Server, _: Peer) {

@@ -107,10 +107,12 @@ impl Connection {
                         debug!("received message {}", raw.to_string());
                         match msg::get_handler(raw) {
                             Ok(handler) => tx.send(server::MessageReceived(id, handler)),
-                            Err(err_msg) => {
+                            Err(Some(err_msg)) => {
                                 // TODO inject proper receiver
                                 err_tx.send(err_msg)
-                            }
+                            },
+                            Err(None) => {} // Ingore error
+                            
                         }
                     },
                     Err(_) => {}

@@ -40,7 +40,7 @@ pub struct Part {
     reason: Option<Vec<u8>> 
 }
 impl super::MessageHandler for Part {
-    fn from_message(message: RawMessage) -> Result<Box<Part>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Part>, Option<RawMessage>> {
         let params = message.params();
         let mut channels = Vec::new();
         if params.len() > 0 {
@@ -49,10 +49,10 @@ impl super::MessageHandler for Part {
                     Some(channel) => {
                         channels.push(channel.to_string());
                     },
-                    None => return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
                         "*", String::from_utf8_lossy(channel_name).as_slice(),
                         "Invalid channel name."
-                    ], None))
+                    ], None)))
                 }
             }
             Ok(box Part {
@@ -61,10 +61,10 @@ impl super::MessageHandler for Part {
                 reason: params.as_slice().get(1).map(|v| v.to_vec())
             })
         } else {
-             Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "no params given"
-            ], None))
+            ], None)))
         }
     }
     fn invoke(self, server: &mut Server, origin: Peer) {
@@ -98,7 +98,7 @@ pub struct Quit {
     reason: Option<Vec<u8>>
 }
 impl super::MessageHandler for Quit {
-    fn from_message(message: RawMessage) -> Result<Box<Quit>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Quit>, Option<RawMessage>> {
         let reason = message.params().as_slice().get(0).map(
             |&v| v.to_vec());
         Ok(box Quit {

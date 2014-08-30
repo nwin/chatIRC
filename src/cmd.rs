@@ -42,6 +42,7 @@ macro_rules! commands {
 
 commands!{
     PRIVMSG     #[doc = "`PRIVMSG` command"];
+    NOTICE      #[doc = "`NOTICE` command"];
     MODE        #[doc = "`MODE` command"];
     JOIN        #[doc = "`JOIN` command, see http://tools.ietf.org/html/rfc1459.html#section-4.2.1"];
     PING        #[doc = "`PING` command"];

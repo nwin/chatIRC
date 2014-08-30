@@ -45,14 +45,14 @@ impl Topic {
 
 
 impl super::MessageHandler for Topic {
-    fn from_message(message: RawMessage) -> Result<Box<Topic>, RawMessage> {
+    fn from_message(message: RawMessage) -> Result<Box<Topic>, Option<RawMessage>> {
         if message.params().len() > 0 {
             let channel = match util::verify_channel(message.params()[0]) {
                 Some(channel) => channel.to_string(),
-                None => return Err(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
                     "*", String::from_utf8_lossy(message.params()[0]).as_slice(),
                     "Invalid channel name."
-                ], None))
+                ], None)))
             };  
             let topic = message.params().as_slice().get(1).unwrap_or(&b"").to_vec();
             Ok(box Topic {
@@ -61,10 +61,10 @@ impl super::MessageHandler for Topic {
                 topic: topic
             })
         } else {
-             Err(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
                 "*", message.command().to_string().as_slice(),
                 "no channel name given"
-            ], None))
+            ], None)))
         }
     }
     fn invoke(self, server: &mut Server, origin: Peer) {
