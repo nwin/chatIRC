@@ -106,7 +106,7 @@ pub fn modes_do(slice: &[&[u8]], block: |Action, ChannelMode, Option<&[u8]>|) {
                 let param = current.get(1).map(|v| *v);
                 if current.len() > 1 {
                     current = current.slice_from(1);
-                } else { current = &[]; }
+                } else { current = [].as_slice(); }
                 param
             } else {
                 None
