@@ -16,13 +16,13 @@ pub struct Msg {
     message: Vec<u8>
 }
 impl Msg {
-    pub fn handle_privmsg(channel: &Channel, client_id: PeerId, message: RawMessage) {
+    pub fn handle_msg(channel: &Channel, client_id: PeerId, message: RawMessage) {
         let maybe_member = channel.member_with_id(client_id);
         if channel.has_flag(MemberOnly) || channel.has_flag(VoicePrivilege) {
             match maybe_member {
                 Some(sender) => {
                     if channel.has_flag(VoicePrivilege) && !sender.has_voice() {
-                        return // TODO error message
+                        return // TODO error message if not NOTICE
                     }
                     for member in channel.members() {
                         if member != sender {
@@ -31,7 +31,7 @@ impl Msg {
                     }
                 },
                 None => {
-                    return // TODO error message
+                    return // TODO error message if not NOTICE
                 }
             }
         } else { // Message goes to everybody
@@ -76,7 +76,7 @@ impl super::MessageHandler for Msg {
                         let id = origin.id();
                         let message = self.raw.clone();
                         channel.send(channel::Handle(proc(channel) {
-                            Msg::handle_privmsg(channel, id, message)
+                            Msg::handle_msg(channel, id, message)
                         }))
                     },
                     None => {}
