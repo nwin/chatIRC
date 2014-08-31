@@ -2,7 +2,7 @@ use cmd;
 use msg::RawMessage;
 
 use server::{Server};
-use con::Peer;
+use con::{Peer, Connection};
 
 /// Handles the CAP command.
 pub struct Cap {
@@ -27,6 +27,7 @@ impl super::MessageHandler for Cap {
     
     fn invoke(self, server: &mut Server, peer: Peer) {
         let server_name = server.host().to_string();
+        info!("cap:invoke")
         spawn(proc() {
             let info = peer.info().read();
             let nick = info.nick().as_slice();
@@ -44,6 +45,10 @@ impl super::MessageHandler for Cap {
                 _ => {}
             }
         })
+    }
+    
+    fn invoke_con(self, server: &mut Server, origin: Connection) {
+        self.invoke(server, origin.peer())
     }
     
     fn raw_message(&self) -> &RawMessage {
