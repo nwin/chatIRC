@@ -84,7 +84,7 @@ impl Connection {
         let hostname = self::net::get_nameinfo(peer_name);
         debug!("hostname of client is {}", hostname.clone())
         let peer = Peer::new(
-            UserInfo::new(id, server_host, hostname),
+            UserInfo::new(id, server_host, hostname.clone()),
             msg_tx,
         );
         let receiving_stream = stream.clone();
@@ -107,8 +107,8 @@ impl Connection {
                         debug!("received message {}", raw.to_string());
                         match msg::get_handler(raw) {
                             Ok(handler) => tx.send(server::MessageReceived(id, handler)),
-                            Err(Some(err_msg)) => {
-                                // TODO inject proper receiver
+                            Err(Some(mut err_msg)) => {
+                                err_msg.set_prefix(hostname.as_slice());
                                 err_tx.send(err_msg)
                             },
                             Err(None) => {} // Ingore error

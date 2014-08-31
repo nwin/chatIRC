@@ -87,11 +87,11 @@ impl UserInfo {
         &self.hostname
     }
     /// Getter for the registration status/method
-    pub fn registration(&self) -> reg::RegistrationStatus {
+    pub fn registration_status(&self) -> reg::RegistrationStatus {
         self.status
     }
     /// Getter for the registration status/method
-    pub fn mut_registration(&mut self) -> &mut reg::RegistrationStatus {
+    pub fn mut_registration_status(&mut self) -> &mut reg::RegistrationStatus {
         &mut self.status
     }
     

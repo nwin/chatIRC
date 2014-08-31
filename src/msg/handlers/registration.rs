@@ -15,7 +15,7 @@ fn try_register(server: &mut Server, origin: Peer) {
             &["somebody already registered with the same nickname"],
             server.host()
         )
-    } else if origin.info().read().registration() == con::reg::Registered {
+    } else if origin.info().read().registration_status() == con::reg::Registered {
         server.send_welcome_msg(&origin);
         server.add_user(origin);
     }
@@ -100,7 +100,7 @@ impl super::MessageHandler for User {
             let mut info = origin.info().write();
             info.set_username(self.username);
             info.set_realname(self.realname);
-            *info.mut_registration() = con::reg::Registered
+            *info.mut_registration_status() = con::reg::Registered
         
         }
         if server.valid_nick(origin.info().read().nick().as_slice()) {
