@@ -1,17 +1,23 @@
 use std::sync::{Arc, RWLock};
 
+use std::collections::{HashSet};
 use util::{HostMask};
 
 use msg::{RawMessage};
 use cmd;
 
-pub mod reg {
+pub mod flag {
     #[deriving(FromPrimitive, PartialEq)]
     pub enum RegistrationStatus {
         Connected = 0,
         GotNick = 1,
         GotUser = 2,
         Registered = 3,
+    }
+    #[deriving(FromPrimitive, PartialEq, Eq, Hash)]
+    pub enum Extensions {
+        Extensions,
+        SASL
     }
 }
 
@@ -27,7 +33,8 @@ pub struct UserInfo {
     realname: String,
     hostname: String,
     hostmask: HostMask,
-    status: reg::RegistrationStatus
+    status: flag::RegistrationStatus,
+    caps: HashSet<flag::Extensions>
 }
 
 impl UserInfo {
@@ -42,7 +49,8 @@ impl UserInfo {
             realname: "John Doe".to_string(),
             hostname: hostname,
             hostmask: mask,
-            status: reg::Connected
+            status: flag::Connected,
+            caps: HashSet::new()
         }
     }
     
@@ -87,11 +95,11 @@ impl UserInfo {
         &self.hostname
     }
     /// Getter for the registration status/method
-    pub fn registration_status(&self) -> reg::RegistrationStatus {
+    pub fn registration_status(&self) -> flag::RegistrationStatus {
         self.status
     }
     /// Getter for the registration status/method
-    pub fn mut_registration_status(&mut self) -> &mut reg::RegistrationStatus {
+    pub fn mut_registration_status(&mut self) -> &mut flag::RegistrationStatus {
         &mut self.status
     }
     

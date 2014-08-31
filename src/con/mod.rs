@@ -5,7 +5,7 @@ use std::rand::{random};
 use std::fmt::{Show, Formatter, FormatError};
 
 pub use self::client::{UserInfo, SharedInfo, Peer};
-pub use self::client::reg as reg;
+pub use self::client::flag as reg;
 
 use msg::{RawMessage};
 use msg;
@@ -92,7 +92,7 @@ impl Connection {
         // this has to be sended first otherwise we have a nice race conditions
         tx.send(server::Connected(Connection {
             id: id,
-            peer: peer,
+            peer: peer.clone(),
             stream: stream.clone(),
             
         }));

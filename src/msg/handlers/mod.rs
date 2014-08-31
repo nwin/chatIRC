@@ -14,6 +14,7 @@ mod mode;
 mod lists;
 mod simple;
 mod ping_pong;
+mod cap;
 
 macro_rules! handle {
     {$(
@@ -52,6 +53,7 @@ handle!{
     USER with self::registration::User;
     PING with self::ping_pong::Ping;
     PONG with self::ping_pong::Pong;
+    CAP with self::cap::Cap;
 }
 
 ///// Temporary dispatcher

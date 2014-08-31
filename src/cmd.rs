@@ -54,6 +54,7 @@ commands!{
     PONG        #[doc = "`PONG` command"];
     NICK        #[doc = "`NICK` command"];
     USER        #[doc = "`USER` command"];
+    CAP         #[doc = "`CAP` command"];
 }
 
 
