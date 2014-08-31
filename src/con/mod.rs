@@ -134,42 +134,6 @@ impl Connection {
         Ok(())
     }
     
-    ///// Sends a numeric response code to the client.
-    ///// Returns immediately.
-    //pub fn send_response<'a>(&'a self, response: ResponseCode, 
-    //                     origin: Option<&'a str>, reason: Option<&'a str>) {
-    //    let mut params: Vec<&'a str> = Vec::with_capacity(2);
-    //    if self.nickname.len() == 0 {
-    //        // TODO follow rust-dev
-    //        // this static lifetime made all lifetime annotations necessary
-    //        params.push("*")
-    //    } else {
-    //        params.push(self.nickname.as_slice())
-    //    }
-    //    if origin.is_some() {
-    //        params.push(origin.unwrap())
-    //    }
-    //    if reason.is_some() {
-    //        params.push(reason.unwrap())
-    //    }
-    //    self.send_msg(RawMessage::new(REPLY(response), 
-    //        params.as_slice(), Some(self.server_host.as_slice())))
-    //}
-    //
-    ///// Sends constructs a message and sends it the client
-    //pub fn send(&self, command: Command, params: &[&str], prefix: Option<&str>) {
-    //    // Note mem::transmute is safe in this case, since &[&str] is just &[&[u8].
-    //    self.send_msg(RawMessage::new(
-    //        command, params, prefix
-    //    ))
-    //}
-    //
-    ///// Sends a message to the client.
-    ///// Returns immediately.
-    //pub fn send_msg(&self, message: RawMessage) {
-    //    let _ = self.msg_tx.send(message);
-    //}
-    
     /// Closes the connection to the client
     pub fn close(&mut self) {
         let _ = self.stream.close_read();
