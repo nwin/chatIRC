@@ -98,9 +98,9 @@ impl HostMask {
     pub fn matches(&self, mask: &str) -> bool {
         let mut mask_chars = mask.chars().peekable();
         let mut chars = self.mask.as_slice().chars().peekable();
-        for c in chars {
-            match c {
-                '*' => match chars.peek() {
+        loop {
+            match chars.next() {
+                Some('*') => match chars.peek() {
                     // Consume all chars until next match is found
                     Some(next) => while match mask_chars.peek() {
                         Some(mask_cha) => mask_cha != next,
@@ -108,10 +108,11 @@ impl HostMask {
                     // * at end of the string matches the whole rest
                     None => return true
                 },
-                cha => match mask_chars.next() {
+                Some(cha) => match mask_chars.next() {
                     None => return false,
                     Some(mask_cha) => if cha != mask_cha { return false }
-                }
+                },
+                None => break
             }
         }
         !mask_chars.next().is_some()
