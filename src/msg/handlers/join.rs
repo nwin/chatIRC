@@ -7,6 +7,8 @@ use util;
 use server::{Server};
 use con::Peer;
 
+use std::collections::hashmap::{Vacant, Occupied};
+
 /// Handles the JOIN command.
 ///
 ///    Command: JOIN
@@ -131,16 +133,19 @@ impl super::MessageHandler for Join {
     
     fn invoke(self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
-        for (channel, password) in self.targets.move_iter()
-                                   .zip(self.passwords.move_iter()) {
+        for (channel, password) in self.targets.into_iter()
+                                   .zip(self.passwords.into_iter()) {
             let member = channel::Member::new(origin.clone());
             let tx = server.tx().unwrap(); // save to unwrap, this should exist by now
-            server.channels.find_or_insert_with(channel.to_string(), |name| {
-                let mut channel = channel::Channel::new(name.clone(), host.clone());
-                channel.add_flag(TopicProtect);
-                channel.add_flag(MemberOnly);
-                channel.listen(tx.clone())
-            }).send(
+            match server.channels.entry(channel.to_string()) {
+                Occupied(entry) => entry.into_mut(),
+                Vacant(entry) => {
+                    let mut channel = channel::Channel::new(channel.to_string(), host.clone());
+                    channel.add_flag(TopicProtect);
+                    channel.add_flag(MemberOnly);
+                    entry.set(channel.listen(tx.clone()))
+                }
+            }.send(
                 channel::HandleMut(proc(channel) {
                     Join::handle_join(channel, member, password)
                 })

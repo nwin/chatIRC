@@ -16,7 +16,7 @@ pub mod flag {
     }
     #[deriving(FromPrimitive, PartialEq, Eq, Hash)]
     pub enum Extensions {
-        Extensions,
+        IRCExtensions,
         SASL
     }
 }
@@ -157,7 +157,7 @@ impl Peer {
         let info = self.info.read();
         let msg = RawMessage::new(
             cmd::REPLY(command), 
-            (vec![info.nick().as_slice()].append(params)).as_slice(), 
+            (vec![info.nick().as_slice()] + params).as_slice(),
             Some(origin)
         );
         let _ = self.tx.send_opt(msg);

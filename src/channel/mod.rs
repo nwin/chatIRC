@@ -309,7 +309,7 @@ impl<'a> ListSender<'a> {
     pub fn feed_line(&self, line: &[&str]) {
         self.receiver.send_response(
             self.list_code, 
-            vec![self.name].append(line.as_slice()).as_slice(),
+            (vec![self.name] + line.as_slice()).as_slice(),
             self.server_name
         )
     }

@@ -107,7 +107,7 @@ impl Member {
     
     /// Updates the cached decorated nick
     fn update_decorated_nick(&mut self) {
-        self.decorated_nick = self.decoration().append(self.nick())
+        self.decorated_nick = self.decoration() + self.nick()
     }
     
     /// Returns the nickname, prefixed with:

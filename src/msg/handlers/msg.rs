@@ -69,7 +69,7 @@ impl super::MessageHandler for Msg {
     }
     fn invoke(mut self, server: &mut Server, origin: Peer) {
         self.raw.set_prefix(origin.info().read().nick().as_slice());
-        for receiver in self.receiver.move_iter() {
+        for receiver in self.receiver.into_iter() {
             match receiver {
                 util::ChannelName(name) => match server.channels.find_mut(&name.to_string()) {
                     Some(channel) => {

@@ -101,8 +101,10 @@ impl Names {
         // TODO check if channel is visible to user…
         // TODO replace with generic list sending function
         for member in channel.members() {
+            let mut tmp = String::from_str("= ");
+            tmp.push_str(channel.name());
             channel.send_response(proxy, cmd::RPL_NAMREPLY, [
-                String::from_str("= ").append(channel.name()).as_slice(),
+                tmp.as_slice(),
                 member.decorated_nick()   
             ])
         }

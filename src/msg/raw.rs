@@ -87,7 +87,7 @@ impl RawMessage {
     /// Parses a message. Extracts the prefix, command and the params
     pub fn parse(mut message: &[u8]) -> Result<RawMessage, &'static str> {
         // Check for message prefix (starts with : and ends with space)
-        let raw_message = Vec::from_slice(message);
+        let raw_message = message.to_vec();
         let prefix = if message.starts_with([b':']) {
             let prefix_end = match message.position_elem(&b' ') { 
                 Some(v) => v, 
@@ -145,24 +145,26 @@ impl RawMessage {
         let bytes = prefix.as_bytes();
         let offset = match self.prefix {
             Some(ref mut old_prefix) => {
-                self.raw_message = Vec::from_slice(b":")
-                    .append(bytes)
-                    .append(self.raw_message.slice_from(old_prefix.end));
+                let mut temp = b":".to_vec();
+                temp.push_all(bytes);
+                temp.push_all(self.raw_message.slice_from(old_prefix.end));
+                self.raw_message = temp;
                 let offset = prefix.len() - old_prefix.end + 1;
                 old_prefix.end += offset;
                 offset
             },
             None => {
-                self.raw_message = Vec::from_slice(b":")
-                    .append(bytes)
-                    .append(b" ")
-                    .append(self.raw_message.as_slice());
+                let mut temp = b":".to_vec();
+                temp.push_all(bytes);
+                temp.push_all(b" ");
+                temp.push_all(self.raw_message.as_slice());
+                self.raw_message = temp;
                 prefix.len() + 2
             }
         };
         self.command.start += offset;
         self.command.end += offset;
-        for param in self.params.mut_iter() {
+        for param in self.params.iter_mut() {
             param.start += offset;
             param.end += offset;
         }
