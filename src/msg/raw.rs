@@ -212,8 +212,8 @@ mod tests {
 	fn test_prefix_setter() {
         let mut m = RawMessage::parse(":prefix JOIN #channel".as_bytes()).unwrap();
         m.set_prefix("new prefix");
-        assert_eq!(String::from_utf8_lossy(m.prefix().unwrap()).to_owned(),
-                   String::from_str("new prefix").to_owned())
+        assert_eq!(String::from_utf8_lossy(m.prefix().unwrap()).to_string(),
+                   String::from_str("new prefix").to_string())
         assert!(match m.command() {JOIN => true, _ => false})
         assert_eq!(m.params()[0], b"#channel")
         assert_eq!(m.as_slice(), b":new prefix JOIN #channel")
