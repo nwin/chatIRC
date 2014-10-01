@@ -34,7 +34,7 @@ pub struct UserInfo {
     hostname: String,
     hostmask: HostMask,
     status: flag::RegistrationStatus,
-    caps: HashSet<flag::Extensions>
+    capabilities: HashSet<flag::Extensions>
 }
 
 impl UserInfo {
@@ -50,7 +50,7 @@ impl UserInfo {
             hostname: hostname,
             hostmask: mask,
             status: flag::Connected,
-            caps: HashSet::new()
+            capabilities: HashSet::new()
         }
     }
     
