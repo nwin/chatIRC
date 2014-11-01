@@ -7,6 +7,7 @@
 #![feature(phase)]
 #![feature(macro_rules)]
 #![feature(unsafe_destructor)]
+#![feature(if_let)]
 #[phase(plugin, link)] extern crate log;
 extern crate collections;
 extern crate libc;

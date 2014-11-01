@@ -73,7 +73,7 @@ impl Mode {
                         
                     },
                     OperatorPrivilege | VoicePrivilege => {
-                        match parameter { Some(name) => {
+                        if let Some(name) = parameter {
                             let nick = match channel.mut_member_with_nick(&String::from_utf8_lossy(name).to_string()) {
                                 Some(member) => match action {
                                     Add => {
@@ -93,7 +93,7 @@ impl Mode {
                                 ),
                                 None => {}
                             }
-                        }, None => {}}
+                        }
                     },
                     ChannelKey => match action {
                         Add => if parameter.is_some() {

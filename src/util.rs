@@ -13,9 +13,9 @@ pub fn valid_nick(nick: &str) -> bool {
             return false
         }
         match char {
-            'a'..'z' | 'A'..'Z' | '\x5B'..'\x60' | '\x7B'..'\x7D'
+            'a'...'z' | 'A'...'Z' | '\x5B'...'\x60' | '\x7B'...'\x7D'
                 if i == 0 => {},
-            'a'..'z' | 'A'..'Z' | '0'..'9' | '\x5B'..'\x60' | '\x7B'..'\x7D' | '-' 
+            'a'...'z' | 'A'...'Z' | '0'...'9' | '\x5B'...'\x60' | '\x7B'...'\x7D' | '-' 
                 if i != 0 => {},
             _ => return false
         }
