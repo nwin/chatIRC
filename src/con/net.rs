@@ -68,7 +68,7 @@ fn new_sockaddr_in6(port: u16, addr: in6_addr) -> sockaddr_in6 {
 /// Returns the hostname for an ip address
 /// TODO: make this safe, see manpage
 pub fn get_nameinfo(peer_socket: SocketAddr) -> String {
-    let SocketAddr { ip: ip, port: port } = peer_socket;
+    let SocketAddr { ip, port } = peer_socket;
     let buf: *mut i8;
     let _ = unsafe {
         let hostlen = 80;
