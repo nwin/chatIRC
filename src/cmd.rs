@@ -26,9 +26,9 @@ macro_rules! commands {
             /// Converts the command into bytes 
             pub fn to_bytes(&'a self) -> Vec<u8> {
                 match *self {
-                    $($ident => Vec::from_slice(stringify!($ident).as_bytes()),)*
+                    $($ident => stringify!($ident).as_bytes().to_vec(),)*
                     REPLY(reply) => format!("{:03u}", reply as u16).into_bytes(),
-                    UNKNOWN(bytes) => Vec::from_slice(bytes)
+                    UNKNOWN(bytes) => bytes.to_vec()
                 }
             }
 
