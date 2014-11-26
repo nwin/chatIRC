@@ -2,7 +2,7 @@ use std::io::{TcpStream, BufferedReader, BufferedWriter};
 use std::io::{IoResult};
 use std::io::net::ip::{Ipv4Addr, Ipv6Addr};
 use std::rand::{random};
-use std::fmt::{Show, Formatter, FormatError};
+use std::fmt::{Show, Formatter, Error};
 
 pub use self::client::{UserInfo, SharedInfo, Peer};
 pub use self::client::flag as reg;
@@ -52,7 +52,7 @@ impl PartialEq for PeerId {
 impl Eq for PeerId {}
 
 impl Show for PeerId {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FormatError> {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         write!(fmt, "{:x}{:x}", self.id[0], self.id[1])
     }
 }

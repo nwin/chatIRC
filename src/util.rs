@@ -1,5 +1,7 @@
 use collections::str::{from_utf8};
 
+pub use self::Receiver::*;
+
 /// Checks if the nickname is valid
 pub fn valid_nick(nick: &str) -> bool {
     // <nick>       ::= <letter> { <letter> | <number> | <special> }

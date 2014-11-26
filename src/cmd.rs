@@ -1,4 +1,9 @@
 /// Module encapsules all command constants.
+
+pub use self::Command::*;
+pub use self::ResponseCode::*;
+
+
 macro_rules! commands {
     {$(
         $ident:ident
@@ -27,7 +32,7 @@ macro_rules! commands {
             pub fn to_bytes(&'a self) -> Vec<u8> {
                 match *self {
                     $($ident => stringify!($ident).as_bytes().to_vec(),)*
-                    REPLY(reply) => format!("{:03u}", reply as u16).into_bytes(),
+                    REPLY(reply) => format!("{:03}", reply as u16).into_bytes(),
                     UNKNOWN(bytes) => bytes.to_vec()
                 }
             }

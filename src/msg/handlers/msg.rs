@@ -60,30 +60,31 @@ impl super::MessageHandler for Msg {
             })
         } else {
             if message.command() != cmd::NOTICE {
-                return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+                return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                    "*", message.command().to_string().as_slice(),
                    "not enought params given"
                 ], None)))
             } else { Err(None) }
         }
     }
-    fn invoke(mut self, server: &mut Server, origin: Peer) {
-        self.raw.set_prefix(origin.info().read().nick().as_slice());
-        for receiver in self.receiver.into_iter() {
-            match receiver {
-                util::ChannelName(name) => match server.channels.find_mut(&name.to_string()) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
+        let mut raw = self.raw.clone();
+        raw.set_prefix(origin.info().read().nick().as_slice());
+        for receiver in self.receiver.iter() {
+            match *receiver {
+                util::ChannelName(ref name) => match server.channels.find_mut(&name.to_string()) {
                     Some(channel) => {
                         let id = origin.id();
-                        let message = self.raw.clone();
+                        let message = raw.clone();
                         channel.send(channel::Handle(proc(channel) {
                             Msg::handle_msg(channel, id, message)
                         }))
                     },
                     None => {}
                 },
-                util::NickName(nick) => match server.find_peer(&nick.to_string()) {
+                util::NickName(ref nick) => match server.find_peer(&nick.to_string()) {
                     Some(client) => {
-                        client.send_msg(self.raw.clone());
+                        client.send_msg(raw.clone());
                     },
                     None => {}
                 },

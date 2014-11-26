@@ -28,7 +28,7 @@ pub fn do_quit_leave(channel: &mut channel::Channel, client: Peer,
         // This error message makes only sense for the part command
         None if command == cmd::PART => channel.send_response(
             &client, cmd::ERR_NOTONCHANNEL,
-            [channel.name(), "You are not on this channel."]
+            &[channel.name(), "You are not on this channel."]
         ),
         _ => {}
     }
@@ -49,7 +49,7 @@ impl super::MessageHandler for Part {
                     Some(channel) => {
                         channels.push(channel.to_string());
                     },
-                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), &[
                         "*", String::from_utf8_lossy(channel_name).as_slice(),
                         "Invalid channel name."
                     ], None)))
@@ -61,13 +61,13 @@ impl super::MessageHandler for Part {
                 reason: params.as_slice().get(1).map(|v| v.to_vec())
             })
         } else {
-             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "no params given"
             ], None)))
         }
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
         for channel_name in self.channels.iter() {
             match server.channels.find_mut(channel_name) {
@@ -105,7 +105,7 @@ impl super::MessageHandler for Quit {
             raw: message, reason: reason
         })
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         server.close_connection(&origin);
         for (_, channel) in server.channels.iter() {
             // TODO make this more performant, cache channels in user?

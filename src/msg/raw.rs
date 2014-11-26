@@ -88,7 +88,7 @@ impl RawMessage {
     pub fn parse(mut message: &[u8]) -> Result<RawMessage, &'static str> {
         // Check for message prefix (starts with : and ends with space)
         let raw_message = message.to_vec();
-        let prefix = if message.starts_with([b':']) {
+        let prefix = if message.starts_with(&[b':']) {
             let prefix_end = match message.position_elem(&b' ') { 
                 Some(v) => v, 
                 None => return Err("RawMessage does not contain a command.") 

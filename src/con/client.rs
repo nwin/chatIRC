@@ -7,6 +7,9 @@ use msg::{RawMessage};
 use cmd;
 
 pub mod flag {
+    pub use self::RegistrationStatus::*;
+    pub use self::Extensions::*;
+    
     #[deriving(FromPrimitive, PartialEq)]
     pub enum RegistrationStatus {
         Connected = 0,

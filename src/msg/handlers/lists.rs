@@ -25,6 +25,7 @@ use con::{Peer};
 /// * is maybe irc op
 /// H/G means here/gone in terms of the away status
 ///
+#[deriving(Clone)]
 pub struct Who {
     raw: RawMessage,
     mask: String, 
@@ -37,7 +38,7 @@ impl Who {
             // Don't give information about this channel to the outside
             // this should also be ok for secret because RPL_ENDOFWHO is
             // always sent.
-            channel.send_response(&client, cmd::RPL_ENDOFWHO, [
+            channel.send_response(&client, cmd::RPL_ENDOFWHO, &[
                 self.mask.as_slice(), "End of WHO list"
             ]);
         } else {
@@ -75,11 +76,12 @@ impl super::MessageHandler for Who {
             raw: message, mask: mask, op_only: op_only
         })
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         match server.channels.find(&self.mask) {
             Some(channel) => {
+                let this = (*self).clone();
                 channel.send(channel::Handle(proc(channel) {
-                    self.handle_who(channel, origin)
+                    this.handle_who(channel, origin)
                 }))
             },
             None => {} // handle later
@@ -103,13 +105,13 @@ impl Names {
         for member in channel.members() {
             let mut tmp = String::from_str("= ");
             tmp.push_str(channel.name());
-            channel.send_response(proxy, cmd::RPL_NAMREPLY, [
+            channel.send_response(proxy, cmd::RPL_NAMREPLY, &[
                 tmp.as_slice(),
                 member.decorated_nick()   
             ])
         }
         channel.send_response(proxy, cmd::RPL_ENDOFNAMES, 
-            [channel.name(), "End of /NAMES list"])
+            &[channel.name(), "End of /NAMES list"])
     }
 }
 impl super::MessageHandler for Names {
@@ -122,13 +124,13 @@ impl super::MessageHandler for Names {
                 ).collect()
             })
         } else {
-            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "not enought params given"
             ], None)))
         }
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
         for recv in self.receivers.iter() {
             match recv {

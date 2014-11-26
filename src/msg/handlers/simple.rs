@@ -7,6 +7,7 @@ use util;
 use server::{Server};
 use con::{Peer};
 
+#[deriving(Clone)]
 pub struct Topic {
     raw: RawMessage,
     channel: String,
@@ -19,19 +20,19 @@ impl Topic {
             Some(member) => {
                 if channel.has_flag(TopicProtect) && !member.is_op() {
                     proxy.send_response(cmd::ERR_CHANOPRIVSNEEDED,
-                        [channel.name(), "You are not a channel operator (channel is +t)."], channel.server_name()
+                        &[channel.name(), "You are not a channel operator (channel is +t)."], channel.server_name()
                     );
                     false
                 } else {
                     let msg = RawMessage::new_raw(cmd::TOPIC, 
-                        [channel.name().as_bytes(), topic.as_slice()], Some(member.nick().as_bytes()));
+                        &[channel.name().as_bytes(), topic.as_slice()], Some(member.nick().as_bytes()));
                     channel.broadcast(msg);
                     true
                 }
             },
             None => {
                 proxy.send_response(cmd::ERR_NOTONCHANNEL,
-                    [channel.name(), "You are not on this channel."],
+                    &[channel.name(), "You are not on this channel."],
                     channel.server_name()
                 );
                 false
@@ -49,7 +50,7 @@ impl super::MessageHandler for Topic {
         if message.params().len() > 0 {
             let channel = match util::verify_channel(message.params()[0]) {
                 Some(channel) => channel.to_string(),
-                None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), &[
                     "*", String::from_utf8_lossy(message.params()[0]).as_slice(),
                     "Invalid channel name."
                 ], None)))
@@ -61,18 +62,19 @@ impl super::MessageHandler for Topic {
                 topic: topic
             })
         } else {
-             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "no channel name given"
             ], None)))
         }
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
         match server.channels.find_mut(&self.channel) {
             Some(channel) => {
+                let this = (*self).clone();
                 channel.send(channel::HandleMut(proc(channel) {
-                    Topic::set(channel, origin, self.topic)
+                    Topic::set(channel, origin, this.topic)
                 }))
             },
             None => origin.send_response(cmd::ERR_NOSUCHCHANNEL,

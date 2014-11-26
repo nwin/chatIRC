@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::collections::hashmap;
+use std::collections::hash_map;
 
 use msg::{RawMessage};
 use util::{HostMask};
@@ -7,6 +7,8 @@ use util::{HostMask};
 use con::{PeerId, Peer};
 use cmd;
 use server;
+
+pub use self::Event::*;
 
 pub use self::member::{Member};
 pub use self::util::{Flags, ChannelMode, modes_do};
@@ -151,7 +153,7 @@ impl Channel {
     }
     
     /// Returns a view into the channel members
-    pub fn members<'a>(&'a self) -> hashmap::Values<'a, String, Member> {
+    pub fn members<'a>(&'a self) -> hash_map::Values<'a, String, Member> {
         self.members.values()
     }
     
@@ -323,6 +325,6 @@ impl<'a> ListSender<'a> {
 #[unsafe_destructor]
 impl<'a> Drop for ListSender<'a> {
     fn drop(&mut self) {
-        self.receiver.send_response(self.end_code, [self.name], self.server_name)
+        self.receiver.send_response(self.end_code, &[self.name], self.server_name)
     }
 }

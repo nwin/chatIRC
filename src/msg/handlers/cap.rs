@@ -5,6 +5,7 @@ use server::{Server};
 use con::{Peer, Connection};
 
 /// Handles the CAP command.
+#[deriving(Clone)]
 pub struct Cap {
     raw: RawMessage,
     subcmd: String,
@@ -25,13 +26,14 @@ impl super::MessageHandler for Cap {
         })
     }
     
-    fn invoke(self, server: &mut Server, peer: Peer) {
+    fn invoke(&self, server: &mut Server, peer: Peer) {
         let server_name = server.host().to_string();
         info!("cap:invoke")
+        let this = (*self).clone();
         spawn(proc() {
             let info = peer.info().read();
             let nick = info.nick().as_slice();
-            match self.subcmd.as_slice() {
+            match this.subcmd.as_slice() {
                 "LS" => {
                     peer.send_msg(RawMessage::new(cmd::CAP, &[
                         nick, "LS", ""//, "multi-prefix sasl"
@@ -39,7 +41,7 @@ impl super::MessageHandler for Cap {
                 },
                 "REQ" => {
                     peer.send_msg(RawMessage::new(cmd::CAP, &[
-                        nick, "NAQ", self.params.connect(" ").as_slice()
+                        nick, "NAQ", this.params.connect(" ").as_slice()
                     ], Some(server_name.as_slice())))
                 },
                 _ => {}
@@ -47,7 +49,7 @@ impl super::MessageHandler for Cap {
         })
     }
     
-    fn invoke_con(self, server: &mut Server, origin: Connection) {
+    fn invoke_con(&self, server: &mut Server, origin: Connection) {
         self.invoke(server, origin.peer())
     }
     

@@ -6,9 +6,6 @@ use server::{Server};
 use con::{Peer, Connection};
 use con;
 
-
-
-
 fn try_register(server: &mut Server, origin: Peer) {
     if server.nicks.contains_key(origin.info().read().nick()) {
         origin.send_response(cmd::ERR_ALREADYREGISTRED, 
@@ -40,18 +37,18 @@ impl super::MessageHandler for Nick {
                     nick: nick.to_string()
                 }),
                 None => 
-                    Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_ERRONEUSNICKNAME), [
+                    Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_ERRONEUSNICKNAME), &[
                         "*", String::from_utf8_lossy(params[0].as_slice()).as_slice(),
                         "invalid nick name"
                     ], None)))
             }
         } else {
-            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NONICKNAMEGIVEN), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NONICKNAMEGIVEN), &[
                 "*", "no nickname given"
             ], None)))
         }
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         if server.nicks.contains_key(&self.nick) {
             origin.send_response(cmd::ERR_NICKNAMEINUSE,
                 &[self.nick.as_slice(), "nickname in use"],
@@ -59,13 +56,13 @@ impl super::MessageHandler for Nick {
             );
         } else {
             if server.valid_nick(self.nick.as_slice()) {
-                origin.info().write().set_nick(self.nick);
+                origin.info().write().set_nick(self.nick.clone());
                 try_register(server, origin)
             }
             
         }
     }
-    fn invoke_con(self, server: &mut Server, origin: Connection) {
+    fn invoke_con(&self, server: &mut Server, origin: Connection) {
         self.invoke(server, origin.peer())
     }
     fn raw_message(&self) -> &RawMessage {
@@ -88,18 +85,18 @@ impl super::MessageHandler for User {
                 raw: message.clone(), username: username, realname: realname
             })
         } else {
-            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+            Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "not enought params given"
             ], None)))
         }
         
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         {
             let mut info = origin.info().write();
-            info.set_username(self.username);
-            info.set_realname(self.realname);
+            info.set_username(self.username.clone());
+            info.set_realname(self.realname.clone());
             *info.mut_registration_status() = con::reg::Registered
         
         }
@@ -107,7 +104,7 @@ impl super::MessageHandler for User {
             try_register(server, origin)
         }
     }
-    fn invoke_con(self, server: &mut Server, origin: Connection) {
+    fn invoke_con(&self, server: &mut Server, origin: Connection) {
         self.invoke(server, origin.peer())
     }
     fn raw_message(&self) -> &RawMessage {

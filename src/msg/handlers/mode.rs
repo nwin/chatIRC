@@ -50,7 +50,7 @@ impl Mode {
         if params.len() > 1 {
             if !is_op { 
                 proxy.send_response(cmd::ERR_CHANOPRIVSNEEDED,
-                    [channel.name(), "You are not a channel operator"], 
+                    &[channel.name(), "You are not a channel operator"], 
                     peer_nick.as_slice().as_slice()
                 );
                 return 
@@ -188,7 +188,7 @@ impl Mode {
             // TODO secret channel??
             // TODO things with parameters?
             proxy.send_response(cmd::RPL_CHANNELMODEIS,
-                [channel.name(), ("+".to_string() + channel.flags()).as_slice()],
+                &[channel.name(), ("+".to_string() + channel.flags()).as_slice()],
                 channel.server_name()
             )
         }
@@ -199,7 +199,7 @@ impl super::MessageHandler for Mode {
         let params = message.params();
         if params.len() > 0 {
             match util::verify_receiver(params[0]) {
-                util::InvalidReceiver(name) => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_USERNOTINCHANNEL), [
+                util::InvalidReceiver(name) => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_USERNOTINCHANNEL), &[
                     "*", message.command().to_string().as_slice(),
                     format!("invalid channel name {}", name).as_slice()
                     ], None))
@@ -212,19 +212,20 @@ impl super::MessageHandler for Mode {
                 })
             }
         } else {
-             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "receiver given"
             ], None)))
         }
     }
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
-        let raw = self.raw;
+        let ref raw = self.raw;
         match self.receiver {
-            util::ChannelName(name) => {
+            util::ChannelName(ref name) => {
                 match server.channels.find_mut(&name.to_string()) {
                     Some(channel) =>  {
+                        let raw = raw.clone();
                         channel.send(channel::HandleMut(proc(channel) {
                             Mode::handle_mode(channel, origin, raw)
                         }))

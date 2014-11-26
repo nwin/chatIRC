@@ -4,13 +4,15 @@ use std::io::{Listener, Acceptor};
 use std::io::{IoResult};
 use std::io::net;
 use std::io;
-use std::collections::hashmap::{HashMap};
+use std::collections::{HashMap};
 
 use msg::{MessageHandler};
 
 use cmd;
 use con::{Peer, PeerId, Connection};
 use channel;
+
+pub use self::Event::*;
 
 pub struct Server {
     host: String,
@@ -115,7 +117,7 @@ impl Server {
     }
     
     fn start_listening(&mut self) -> IoResult<Receiver<(Event)>>  {
-        let listener = TcpListener::bind(self.ip.as_slice(), self.port);
+        let listener = TcpListener::bind(format!("{}:{}", self.ip, self.port).as_slice());
         info!("started listening on {}:{} ({})", self.ip, self.port, self.host);
         let acceptor = try!(listener.listen());
         let (tx, rx) = channel();

@@ -7,7 +7,7 @@ use util;
 use server::{Server};
 use con::Peer;
 
-use std::collections::hashmap::{Vacant, Occupied};
+use std::collections::hash_map::{Vacant, Occupied};
 
 /// Handles the JOIN command.
 ///
@@ -26,7 +26,7 @@ impl Join {
                     Some(password) => &password == chan_pass,
                     None => false } {
                 member.send_response(cmd::ERR_BADCHANNELKEY,
-                    [channel.name(),
+                    &[channel.name(),
                     "Cannot join channel (+k)"]
                 );
                 return
@@ -86,7 +86,7 @@ impl Join {
         // Topic reply
         let member = channel.member_with_id(id).unwrap();
         member.send_response(cmd::RPL_NOTOPIC, 
-            [channel.name(), "No topic set."]
+            &[channel.name(), "No topic set."]
         );
         // Send name list as per RFC
         super::lists::Names::handle_names(channel, member.proxy());
@@ -114,14 +114,14 @@ impl super::MessageHandler for Join {
                             passwords.push(None);
                         }
                     },
-                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), [
+                    None => return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NOSUCHCHANNEL), &[
                         "*", String::from_utf8_lossy(channel_name).as_slice(),
                         "Invalid channel name."
                     ], None)))
                 }
             }
         } else {
-             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), [
+             return Err(Some(RawMessage::new(cmd::REPLY(cmd::ERR_NEEDMOREPARAMS), &[
                 "*", message.command().to_string().as_slice(),
                 "no params given"
             ], None)))
@@ -131,12 +131,13 @@ impl super::MessageHandler for Join {
         })
     }
     
-    fn invoke(self, server: &mut Server, origin: Peer) {
+    fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
-        for (channel, password) in self.targets.into_iter()
-                                   .zip(self.passwords.into_iter()) {
+        for (channel, password) in self.targets.iter()
+                                   .zip(self.passwords.iter()) {
             let member = channel::Member::new(origin.clone());
             let tx = server.tx().unwrap(); // save to unwrap, this should exist by now
+            let password = password.clone();
             match server.channels.entry(channel.to_string()) {
                 Occupied(entry) => entry.into_mut(),
                 Vacant(entry) => {

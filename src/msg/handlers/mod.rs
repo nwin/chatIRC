@@ -77,7 +77,7 @@ handle!{
 /// impl super::MessageHandler for Handler {
 ///     fn from_message(message: RawMessage) -> Result<Box<Handler>, Option<RawMessage>> {
 ///     }
-///     fn invoke(self, server: &mut Server, origin: SharedClient) {
+///     fn invoke(&self, server: &mut Server, origin: SharedClient) {
 ///     }
 ///     fn raw_message(&self) -> &RawMessage {
 ///         &self.raw
@@ -95,12 +95,12 @@ pub trait MessageHandler {
     /// Since this usually happens on the main event loop,
     /// the method should avoid time-consuming operations such that the main thread
     /// is not blocked for an extended time period.
-    fn invoke(self, server: &mut Server, origin: Peer);
+    fn invoke(&self, server: &mut Server, origin: Peer);
     /// Invoke the handler for a connection.
     ///
     /// This only happens if the client is not registered. The default implementation
     /// does nothing. Overwrite to influence the registration process.
-    fn invoke_con(self, _: &mut Server, _: Connection) {}
+    fn invoke_con(&self, _: &mut Server, _: Connection) {}
     /// Returns the raw message the handler is bases on
     fn raw_message(&self) -> &RawMessage;
     
@@ -114,7 +114,7 @@ impl MessageHandler for Reply {
     fn from_message(message: RawMessage) -> Result<Box<Reply>, Option<RawMessage>> {
         Ok(box Reply { raw: message })
     }
-    fn invoke(self, _: &mut Server, _: Peer) {
+    fn invoke(&self, _: &mut Server, _: Peer) {
         // Ingore reply codes from clients they are not allowed to send any
     }
     fn raw_message(&self) -> &RawMessage { &self.raw }
@@ -128,7 +128,7 @@ impl MessageHandler for ExtensionHandler {
     fn from_message(message: RawMessage) -> Result<Box<ExtensionHandler>, Option<RawMessage>> {
         Ok(box ExtensionHandler { raw: message })
     }
-    fn invoke(self, _: &mut Server, _: Peer) {
+    fn invoke(&self, _: &mut Server, _: Peer) {
         error!("Handling of message {} not implemented yet", self.raw.command().to_string())
     }
     fn raw_message(&self) -> &RawMessage { &self.raw }

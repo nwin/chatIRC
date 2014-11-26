@@ -1,5 +1,7 @@
 use std::collections::{HashSet};
 
+pub use self::ChannelMode::*;
+pub use self::Action::*;
 
 /// Enumeration of possible channel modes
 /// as of http://tools.ietf.org/html/rfc2811#section-4
