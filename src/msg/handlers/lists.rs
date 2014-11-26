@@ -77,7 +77,7 @@ impl super::MessageHandler for Who {
         })
     }
     fn invoke(&self, server: &mut Server, origin: Peer) {
-        match server.channels.find(&self.mask) {
+        match server.channels.get(&self.mask) {
             Some(channel) => {
                 let this = (*self).clone();
                 channel.send(channel::Handle(proc(channel) {
@@ -135,7 +135,7 @@ impl super::MessageHandler for Names {
         for recv in self.receivers.iter() {
             match recv {
                 &util::ChannelName(ref name) => {
-                    match server.channels.find_mut(&name.to_string()) {
+                    match server.channels.get_mut(&name.to_string()) {
                         Some(channel) => { 
                             let proxy = origin.clone();
                             channel.send(channel::Handle(proc(channel) {

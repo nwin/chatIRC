@@ -70,7 +70,7 @@ impl super::MessageHandler for Part {
     fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
         for channel_name in self.channels.iter() {
-            match server.channels.find_mut(channel_name) {
+            match server.channels.get_mut(channel_name) {
                 Some(channel) => {
                     let reason = self.reason.clone();
                     let proxy = origin.clone();

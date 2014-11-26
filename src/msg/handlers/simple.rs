@@ -70,7 +70,7 @@ impl super::MessageHandler for Topic {
     }
     fn invoke(&self, server: &mut Server, origin: Peer) {
         let host = server.host().to_string(); // clone due to #6393
-        match server.channels.find_mut(&self.channel) {
+        match server.channels.get_mut(&self.channel) {
             Some(channel) => {
                 let this = (*self).clone();
                 channel.send(channel::HandleMut(proc(channel) {

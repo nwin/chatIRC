@@ -72,7 +72,7 @@ impl super::MessageHandler for Msg {
         raw.set_prefix(origin.info().read().nick().as_slice());
         for receiver in self.receiver.iter() {
             match *receiver {
-                util::ChannelName(ref name) => match server.channels.find_mut(&name.to_string()) {
+                util::ChannelName(ref name) => match server.channels.get_mut(&name.to_string()) {
                     Some(channel) => {
                         let id = origin.id();
                         let message = raw.clone();
@@ -82,7 +82,7 @@ impl super::MessageHandler for Msg {
                     },
                     None => {}
                 },
-                util::NickName(ref nick) => match server.find_peer(&nick.to_string()) {
+                util::NickName(ref nick) => match server.get_peer(&nick.to_string()) {
                     Some(client) => {
                         client.send_msg(raw.clone());
                     },

@@ -76,14 +76,14 @@ impl Server {
         for event in try!(self.start_listening()).iter() {
             match event {
                 MessageReceived(client_id, handler) => {
-                    let client = match self.users.find(&client_id) {
+                    let client = match self.users.get(&client_id) {
                         Some(client) => Some(client.clone()),
                         None => None
                     };
                     match client {
                         Some(client) => handler.invoke(&mut self, client),
                         None => {
-                            let con = match self.connections.find(&client_id) {
+                            let con = match self.connections.get(&client_id) {
                                 Some(con) => Some(con.clone()),
                                 None => None
                             };
@@ -100,7 +100,7 @@ impl Server {
                 },
                 Connected(mut con) => { 
                     let id = con.id();
-                    if self.connections.find(&id).is_some() {
+                    if self.connections.get(&id).is_some() {
                         // Duplicate client id.
                         con.close();
                     }
@@ -151,8 +151,8 @@ impl Server {
     }
     
     /// Finds a peer
-    pub fn find_peer(&self, nick: &String) -> Option<&Peer> {
-        self.nicks.find(nick).and_then(|id| self.users.find(id))
+    pub fn get_peer(&self, nick: &String) -> Option<&Peer> {
+        self.nicks.get(nick).and_then(|id| self.users.get(id))
     }
     
     /// Getter for hostname
@@ -163,7 +163,7 @@ impl Server {
     pub fn close_connection(&mut self, client: &Peer) {
         //self.nicks.remove(client.nick());
         let id = &client.id();
-        self.connections.find_mut(id).map(|c| c.close());
+        self.connections.get_mut(id).map(|c| c.close());
         self.users.remove(id);
         self.connections.remove(id);
         error!("TODO: clean up nicknames in Server::close_connection")

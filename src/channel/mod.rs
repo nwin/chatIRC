@@ -235,7 +235,7 @@ impl Channel {
     
     /// Adds a member to the channel
     pub fn remove_member(&mut self, id: &PeerId) -> bool {
-        let nick = { match self.nicknames.find(id) {
+        let nick = { match self.nicknames.get(id) {
                 Some(nick) => nick.clone(),
                 None => return false
         }};
@@ -254,27 +254,27 @@ impl Channel {
     }
     
     pub fn member_with_id(&self, client_id: PeerId) -> Option<&Member> {
-        let nick = self.nicknames.find(&client_id).clone();
+        let nick = self.nicknames.get(&client_id).clone();
         match nick {
-            Some(nick) => self.members.find(nick),
+            Some(nick) => self.members.get(nick),
             None => None
         }
     }
     
     pub fn mut_member_with_id(&mut self, client_id: PeerId) -> Option<&mut Member> {
-        let nick = self.nicknames.find(&client_id).clone();
+        let nick = self.nicknames.get(&client_id).clone();
         match nick {
-            Some(nick) => self.members.find_mut(nick),
+            Some(nick) => self.members.get_mut(nick),
             None => None
         }
     }
     
     pub fn member_with_nick(&self, nick: &String) -> Option<&Member> {
-        self.members.find(nick)
+        self.members.get(nick)
     }
     
     pub fn mut_member_with_nick(&mut self, nick: &String) -> Option<&mut Member> {
-        self.members.find_mut(nick)
+        self.members.get_mut(nick)
     }
     
     /// Broadcasts a message to all members

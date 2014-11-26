@@ -223,7 +223,7 @@ impl super::MessageHandler for Mode {
         let ref raw = self.raw;
         match self.receiver {
             util::ChannelName(ref name) => {
-                match server.channels.find_mut(&name.to_string()) {
+                match server.channels.get_mut(&name.to_string()) {
                     Some(channel) =>  {
                         let raw = raw.clone();
                         channel.send(channel::HandleMut(proc(channel) {
